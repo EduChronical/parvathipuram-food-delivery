@@ -1,0 +1,38 @@
+PARVATHIPURAM BITES — PHASE 4 VALIDATION
+
+Scope:
+- Delivery Rider Dashboard
+- Core Super-Admin Dashboard
+- Required backend glue/services/routes only
+
+Static validation performed:
+- Backend JavaScript syntax (node --check): PASS
+- Frontend JS/JSX parser validation: PASS (17 source files, 0 syntax errors)
+- New backend route count: PASS (16 total)
+  - Rider routes: 10
+  - Super-admin routes: 6
+- Phase-1 schema object compatibility scan: PASS
+- Existing Phase-2 pickup/deliver endpoint compatibility: PASS
+- Rider offer acceptance respects Phase-1 delivery-offer trigger: PASS
+- Expired-offer path does not attempt a rider-forbidden `expired` state write: PASS
+- Self-registration cannot reactivate explicitly revoked/suspended rider access: PASS
+- Legacy active rider profile without a role binding can be repaired without overriding explicit revocation: PASS
+- Wallet source uses Phase-1 append-only wallet ledger + v_wallet_summary: PASS
+- Rider payout history reads app.delivery_agent_payouts under Phase-1 RLS: PASS
+- Demand heatmap uses aggregate v_live_demand_heatmap only: PASS
+- Assigned-order rider SMS/in-app queue remains Phase-1 trigger-authoritative: PASS
+- Pre-assignment rider offer SMS/in-app hook: PASS
+- Admin online count uses heartbeat freshness rather than is_online alone: PASS
+- CSV daily/weekly/monthly boundaries use Asia/Kolkata calendar dates: PASS
+- CSV spreadsheet formula-injection hardening: PASS
+- Fraud flag persistence uses app.fraud_flags: PASS
+- Cancel/reject/unassigned reason logs use Phase-1 audit tables: PASS
+- Google Maps route uses directions API URL with driving navigation action: PASS
+
+Excluded-scope verification:
+- Weekly catalog sync worker: NOT INCLUDED
+- Catalog scraping worker: NOT INCLUDED
+- Swarm/test-agent code: NOT INCLUDED
+
+Runtime limitation:
+A live PostgreSQL integration run was not performed in this artifact environment because no deployed Phase-1 database credentials/server were supplied. Database behavior is bound to and statically checked against the completed Phase-1 schema.
