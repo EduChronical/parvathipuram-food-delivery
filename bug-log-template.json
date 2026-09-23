@@ -1,0 +1,45 @@
+{
+  "fingerprint": "sha256-normalized-defect-signature",
+  "title": "Short defect title",
+  "component": "orders|payments|rider|restaurant|customer-ui|admin-ui|rbac|performance",
+  "severity": "low|medium|high|critical",
+  "status": "open",
+  "scenario": "fullLifecycle",
+  "agentType": "customer-bot",
+  "firstSeenAt": "ISO-8601",
+  "lastSeenAt": "ISO-8601",
+  "occurrenceCount": 1,
+  "request": {
+    "method": "POST",
+    "path": "/v1/orders",
+    "requestId": "request-id",
+    "bodyShape": [
+      "restaurantId",
+      "addressId",
+      "items",
+      "tipPaise"
+    ]
+  },
+  "response": {
+    "status": 500,
+    "errorCode": "INTERNAL_ERROR"
+  },
+  "expected": "HTTP 200 and exactly one order for an idempotency key",
+  "actual": "HTTP 500",
+  "evidence": {
+    "traceFile": "artifacts/traces/...",
+    "playwrightTrace": null,
+    "screenshot": null
+  },
+  "reproduction": {
+    "seed": 20260923,
+    "iteration": 1,
+    "steps": [
+      "..."
+    ]
+  },
+  "tags": [
+    "regression",
+    "orders"
+  ]
+}
