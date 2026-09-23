@@ -1,0 +1,9 @@
+Apply this two-line integration to the existing Phase-2 src/app.js:
+
+1) Add import:
+import { registerPhase3Routes } from './register-phase3-routes.js';
+
+2) Inside createApp(), after registerNotificationRoutes(router):
+registerPhase3Routes(router);
+
+Copy backend-glue/src/register-phase3-routes.js, routes/*.js, and services/*.js into the Phase-2 src/ tree preserving paths.

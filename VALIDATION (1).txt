@@ -1,0 +1,26 @@
+PARVATHIPURAM BITES — PHASE 3 VALIDATION
+
+Scope:
+- Customer dashboard frontend: INCLUDED
+- Restaurant owner dashboard frontend: INCLUDED
+- Required backend glue: INCLUDED
+- Rider dashboard: EXCLUDED
+- Swarm-agent implementation: EXCLUDED
+- Sync-worker implementation: EXCLUDED
+
+Static validation completed:
+- Backend JavaScript syntax (node --check): PASS
+- New Phase-3 glue route definitions: 16/16 PASS
+- Frontend JavaScript/JSX parser validation using TypeScript parser: PASS (15 files)
+- Phase-2 overlay file layout/import paths: PASS
+- Owner-lock SQL present for restaurant is_open: PASS
+- Owner-lock SQL present for menu is_available: PASS
+- Owner-lock SQL present for manual menu fields: PASS
+- Customer order state-changing operations reuse Phase-2 create/cancel services: PASS
+- Restaurant accept/reject operations reuse Phase-2 services: PASS
+
+RLS-specific correction:
+- Restaurant order/review reads do not join customer app_users records, because Phase-1 app_users RLS only exposes self/admin rows. Restaurant owners receive only data already visible through their own order/review policies.
+
+Runtime note:
+A live end-to-end database run was not performed in this artifact environment because the Phase-2 npm dependency tree/PostgreSQL service is not installed/running here. Static backend syntax and route overlay checks passed.
