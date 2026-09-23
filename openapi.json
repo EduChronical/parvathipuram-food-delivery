@@ -1,0 +1,804 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Parvathipuram Bites Core Backend API",
+    "version": "2.0.0",
+    "description": "Phase-2 backend contract bound to the Phase-1 PostgreSQL schema. Monetary fields are integer paise."
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Orders"
+    },
+    {
+      "name": "Restaurants"
+    },
+    {
+      "name": "Riders"
+    },
+    {
+      "name": "Notifications"
+    },
+    {
+      "name": "Internal"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "security": [],
+        "tags": [
+          "Internal"
+        ],
+        "operationId": "healthcheck",
+        "responses": {
+          "200": {
+            "description": "Healthy"
+          }
+        }
+      }
+    },
+    "/v1/orders": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "createOrder",
+        "summary": "Create idempotent order with server-side menu pricing, GPS delivery fee, and zero platform fee.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "getOrder",
+        "summary": "Read an order visible to the authenticated participant.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ]
+      }
+    },
+    "/v1/orders/{orderId}/cancel": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "cancelOrder",
+        "summary": "Cancel only while status=placed; mandatory reason is logged.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/restaurants/{restaurantId}/orders/{orderId}/accept": {
+      "post": {
+        "tags": [
+          "Restaurants"
+        ],
+        "operationId": "acceptRestaurantOrder",
+        "summary": "Restaurant owner accepts a placed order.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RestaurantId"
+          },
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ]
+      }
+    },
+    "/v1/restaurants/{restaurantId}/orders/{orderId}/reject": {
+      "post": {
+        "tags": [
+          "Restaurants"
+        ],
+        "operationId": "rejectRestaurantOrder",
+        "summary": "Restaurant owner rejects a placed/accepted order with mandatory reason.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RestaurantId"
+          },
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/riders/me/availability": {
+      "patch": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "setRiderAvailability",
+        "summary": "Set rider online/offline state; online requires coordinates.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RiderAvailabilityRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/riders/me/heartbeat": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "riderHeartbeat",
+        "summary": "Refresh rider coordinates and last-seen time.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Location"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/riders/me/offers": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "listRiderOffers",
+        "summary": "List current non-expired delivery offers.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/v1/riders/me/offers/{assignmentId}/accept": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "acceptRiderOffer",
+        "summary": "Atomically accept offer and assign order.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AssignmentId"
+          }
+        ]
+      }
+    },
+    "/v1/riders/me/offers/{assignmentId}/reject": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "rejectRiderOffer",
+        "summary": "Reject offer with reason.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AssignmentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/riders/me/orders/{orderId}/pickup": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "markOrderPickedUp",
+        "summary": "Transition assigned -> picked_up.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ]
+      }
+    },
+    "/v1/riders/me/orders/{orderId}/deliver": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "markOrderDelivered",
+        "summary": "Transition picked_up -> delivered; COD becomes paid and rider ledger earnings are posted.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderId"
+          }
+        ]
+      }
+    },
+    "/v1/riders/me/wallet": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "operationId": "getRiderWallet",
+        "summary": "Return wallet totals and append-only ledger history.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "listNotifications",
+        "summary": "Return authenticated user's notification history.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/v1/internal/payment-events": {
+      "post": {
+        "tags": [
+          "Internal"
+        ],
+        "operationId": "processPaymentEvent",
+        "summary": "Process HMAC-signed payment/pass-through settlement event.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentEvent"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HS256 JWT; backend trusts sub only and loads role from PostgreSQL."
+      }
+    },
+    "parameters": {
+      "OrderId": {
+        "name": "orderId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "RestaurantId": {
+        "name": "restaurantId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "AssignmentId": {
+        "name": "assignmentId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "schemas": {
+      "CreateOrderRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "restaurantId",
+          "addressId",
+          "items",
+          "idempotencyKey"
+        ],
+        "properties": {
+          "restaurantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "addressId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": [
+                "menuItemId",
+                "quantity"
+              ],
+              "properties": {
+                "menuItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                }
+              }
+            }
+          },
+          "tipPaise": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "cod",
+              "upi",
+              "card",
+              "netbanking",
+              "wallet",
+              "other"
+            ],
+            "default": "cod"
+          },
+          "customerNote": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 200
+          }
+        }
+      },
+      "ReasonRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reasonCode",
+          "reasonText"
+        ],
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "reasonText": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        }
+      },
+      "RiderAvailabilityRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "online"
+        ],
+        "properties": {
+          "online": {
+            "type": "boolean"
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        }
+      },
+      "PaymentEvent": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "provider",
+          "providerReference",
+          "orderId",
+          "kind",
+          "amountPaise"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerReference": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "authorized",
+              "paid",
+              "failed",
+              "refunded",
+              "split_settled"
+            ]
+          },
+          "amountPaise": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "restaurantAmountPaise": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "riderAmountPaise": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "platformAmountPaise": {
+            "type": "integer",
+            "const": 0
+          },
+          "restaurantTransferReference": {
+            "type": "string"
+          },
+          "riderTransferReference": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "requestId"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Role or ownership denied",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "State/business conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  }
+}
