@@ -30,7 +30,7 @@ async function main(){
   const customer=await ensureUser("customer@ppmbites.local","Demo Customer",RoleCode.CUSTOMER,"+919000000001");
   const owner=await ensureUser("restaurant@ppmbites.local","Demo Restaurant Owner",RoleCode.RESTAURANT_OWNER,"+919000000002");
   const rider=await ensureUser("delivery@ppmbites.local","Demo Delivery Partner",RoleCode.DELIVERY_PARTNER,"+919000000003");
-  await ensureUser(process.env.ADMIN_EMAIL??"admin@ppmbites.local","Platform Admin",RoleCode.SUPER_ADMIN,"+919000000004");
+
 
   const restaurant=await db.restaurant.upsert({
     where:{slug:"spice-station-demo"},
