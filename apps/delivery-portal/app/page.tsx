@@ -6,7 +6,8 @@ export default function DeliveryPortal(){
  const [logged,setLogged]=useState(false);
  const [password,setPassword]=useState("DemoPass!2026");
  const [online,setOnline]=useState(true);
- const [offers,setOffers]=useState<any[]>([]);\n const [current,setCurrent]=useState<any[]>([]);
+ const [offers,setOffers]=useState<any[]>([]);
+ const [current,setCurrent]=useState<any[]>([]);
  const [message,setMessage]=useState("");
  useEffect(()=>setLogged(!!sessionStorage.getItem("ppm_access_token")),[]);
  useEffect(()=>{if(logged){load();sendLocation()}},[logged]);
@@ -38,7 +39,8 @@ export default function DeliveryPortal(){
   try{await api("/orders/"+orderId+"/transition",{method:"POST",body:JSON.stringify({to:status})});await load()}
   catch(e:any){setMessage(e.message)}
  }
-\n if(!logged)return <main className="mx-auto max-w-md p-5 pt-20">
+
+ if(!logged)return <main className="mx-auto max-w-md p-5 pt-20">
   <div className="card"><span className="eyebrow">DELIVERY PARTNER</span><h1 className="my-3 text-3xl font-black">Your route. Your earnings.</h1>
   <p className="muted">Go online, accept nearby deliveries and keep every step visible.</p>
   <form className="stack mt-5" onSubmit={login}><input className="input" value="delivery@ppmbites.local" readOnly/><input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)}/><Button type="submit">Sign in</Button></form></div>
