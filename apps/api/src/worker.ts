@@ -30,7 +30,7 @@ new Worker("notifications",async job=>{
       const subscriptions=await db.pushSubscription.findMany({where:{userId:n.userId}});
       let delivered=0;
       for(const s of subscriptions){
-        const result=await sendPush(s.token,n.title,n.body,(n.data??{}) as any);
+        const result=await sendPush(s.target,n.title,n.body,(n.data??{}) as any);
         if(result.invalid) await db.pushSubscription.deleteMany({where:{id:s.id}});
         else if(result.ok) delivered++;
       }
