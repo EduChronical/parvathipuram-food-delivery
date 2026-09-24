@@ -1,9 +1,9 @@
 import {Worker,Queue} from "bullmq";
-import IORedis from "ioredis";
+import {Redis} from "ioredis";
 import {db,NotificationChannel} from "@ppm/database";
 import {smsProvider,emailProvider} from "./providers.js";
 
-const connection=new IORedis(process.env.REDIS_URL??"redis://localhost:6379",{maxRetriesPerRequest:null});
+const connection=new Redis(process.env.REDIS_URL??"redis://localhost:6379",{maxRetriesPerRequest:null});
 export const notificationQueue=new Queue("notifications",{connection});
 
 new Worker("notifications",async job=>{
