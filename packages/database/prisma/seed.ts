@@ -16,6 +16,10 @@ async function ensureUser(email:string,name:string,roleCode:RoleCode,phone:strin
 }
 
 async function main(){
+  if(process.env.NODE_ENV==="production"&&process.env.ALLOW_PRODUCTION_SEED!=="true"){
+    console.log("Production demo seed skipped");
+    return;
+  }
   for(const code of Object.values(RoleCode)){
     await db.role.upsert({where:{code},update:{name:code.replaceAll("_"," ")},create:{code,name:code.replaceAll("_"," ")}});
   }

@@ -33,7 +33,7 @@ export async function authRoutes(app:FastifyInstance){
   app.post("/auth/login",{config:{rateLimit:{max:10,timeWindow:"1 minute"}}},async(req,reply)=>{
     const body=loginSchema.parse(req.body);
     const user=await db.user.findFirst({where:{OR:[{email:body.identifier.toLowerCase()},{phone:body.identifier}]}});
-    if(!user?.passwordHash || !(await argon2.verify(user.passwordHash,body.password))) return reply.code(401).send({code:"INVALID_CREDENTIALS",message:"Invalid credentials",requestId:req.id});
+    if(!user?.passwordHash || user.status!=="ACTIVE" || !(await argon2.verify(user.passwordHash,body.password))) return reply.code(401).send({code:"INVALID_CREDENTIALS",message:"Invalid credentials",requestId:req.id});
     return issueTokens(app,user.id,{ip:req.ip,ua:req.headers["user-agent"]});
   });
 

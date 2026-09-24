@@ -18,7 +18,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "seed": "tsx prisma/seed.ts",
-    "bootstrap:admin": "tsx prisma/bootstrap-admin.ts"
+    "bootstrap:admin": "tsx prisma/bootstrap-admin.ts",
+    "cleanup:production": "tsx prisma/production-cleanup.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",

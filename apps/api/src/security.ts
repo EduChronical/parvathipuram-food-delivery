@@ -14,7 +14,8 @@ export async function registerSecurity(app:FastifyInstance){
     if(!req.headers.authorization?.startsWith("Bearer ")) return;
     try{
       const payload=await req.jwtVerify<{sub:string;roles:RoleCode[]}>();
-      req.authUser={id:payload.sub,roles:payload.roles};
+      const user=await db.user.findUnique({where:{id:payload.sub},select:{status:true}});
+      if(user?.status==="ACTIVE") req.authUser={id:payload.sub,roles:payload.roles};
     }catch{}
   });
 }
