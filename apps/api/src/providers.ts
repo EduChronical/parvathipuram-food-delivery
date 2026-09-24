@@ -36,11 +36,33 @@ export function paymentProvider():PaymentProvider{
 
 export interface SmsProvider{send(to:string,body:string):Promise<void>}
 class DevSms implements SmsProvider{async send(to:string,body:string){console.info("DEV_SMS",{to,body})}}
-export function smsProvider():SmsProvider{return new DevSms()}
+class TwilioSms implements SmsProvider{
+  async send(to:string,body:string){
+    const sid=process.env.SMS_API_KEY,token=process.env.SMS_API_SECRET,from=process.env.SMS_FROM;
+    if(!sid||!token||!from) throw new Error("SMS_PROVIDER_NOT_CONFIGURED");
+    const form=new URLSearchParams({To:to,From:from,Body:body});
+    const res=await fetch("https://api.twilio.com/2010-04-01/Accounts/"+encodeURIComponent(sid)+"/Messages.json",{
+      method:"POST",headers:{Authorization:"Basic "+Buffer.from(sid+":"+token).toString("base64"),"Content-Type":"application/x-www-form-urlencoded"},body:form
+    });
+    if(!res.ok) throw new Error("SMS_DELIVERY_FAILED");
+  }
+}
+export function smsProvider():SmsProvider{return process.env.SMS_PROVIDER==="twilio"?new TwilioSms():new DevSms()}
 
 export interface EmailProvider{send(to:string,subject:string,body:string):Promise<void>}
 class DevEmail implements EmailProvider{async send(to:string,subject:string,body:string){console.info("DEV_EMAIL",{to,subject,body})}}
-export function emailProvider():EmailProvider{return new DevEmail()}
+class ResendEmail implements EmailProvider{
+  async send(to:string,subject:string,body:string){
+    const key=process.env.EMAIL_API_KEY,from=process.env.EMAIL_FROM;
+    if(!key||!from) throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
+    const res=await fetch("https://api.resend.com/emails",{
+      method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},
+      body:JSON.stringify({from,to:[to],subject,text:body})
+    });
+    if(!res.ok) throw new Error("EMAIL_DELIVERY_FAILED");
+  }
+}
+export function emailProvider():EmailProvider{return process.env.EMAIL_PROVIDER==="resend"?new ResendEmail():new DevEmail()}
 
 export function storageClient(){
   return new S3Client({
