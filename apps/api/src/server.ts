@@ -44,10 +44,21 @@ await app.register(rawBody,{field:"rawBody",global:false,encoding:false,runFirst
 await registerSecurity(app);
 
 app.setErrorHandler((err,req,reply)=>{
-  if(err instanceof ZodError) return reply.code(400).send({code:"VALIDATION_ERROR",message:"Request validation failed",details:err.issues.map(i=>({path:i.path.join("."),message:i.message})),requestId:req.id});
+  if(err instanceof ZodError){
+    return reply.code(400).send({
+      code:"VALIDATION_ERROR",
+      message:"Request validation failed",
+      details:err.issues.map(i=>({path:i.path.join("."),message:i.message})),
+      requestId:req.id
+    });
+  }
   const status=(err as any).statusCode??500;
   req.log.error({err,requestId:req.id});
-  return reply.code(status).send({code:(err as any).code??"INTERNAL_ERROR",message:status>=500?"Internal server error":(err instanceof Error?err.message:"Request failed"),requestId:req.id});
+  return reply.code(status).send({
+    code:(err as any).code??"INTERNAL_ERROR",
+    message:status>=500?"Internal server error":(err instanceof Error?err.message:"Request failed"),
+    requestId:req.id
+  });
 });
 
 app.get("/health",async()=>{
@@ -56,9 +67,20 @@ app.get("/health",async()=>{
   let redis="disabled";
   if(env.REDIS_URL){
     const r=new Redis(env.REDIS_URL,{lazyConnect:true,maxRetriesPerRequest:1});
-    try{await r.connect();redis=await r.ping()}finally{r.disconnect()}
+    try{
+      await r.connect();
+      redis=await r.ping();
+    }finally{
+      r.disconnect();
+    }
   }
-  return {ok:true,database:{ok:true,latencyMs:Date.now()-dbStart},redis,node:process.version,time:new Date().toISOString()};
+  return {
+    ok:true,
+    database:{ok:true,latencyMs:Date.now()-dbStart},
+    redis,
+    node:process.version,
+    time:new Date().toISOString()
+  };
 });
 
 app.get("/platform/capabilities",async()=>({
@@ -74,39 +96,44 @@ app.get("/platform/capabilities",async()=>({
 
 app.get("/me",async req=>{
   const u=await requireAuth(req);
-  return db.user.findUnique({where:{id:u.id},include:{profile:true,roles:{include:{role:true}},wallet:true}});
+  return db.user.findUnique({
+    where:{id:u.id},
+    include:{profile:true,roles:{include:{role:true}},wallet:true}
+  });
 });
 
 app.get("/orders/:id/events",async(req,reply)=>{
   const u=await requireAuth(req);
   const id=(req.params as any).id as string;
   const order=await db.order.findUnique({where:{id}});
-  if(!order||order.userId!==u.id) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
-  reply.hijack();
-  reply.raw.writeHead(200,{"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","X-Accel-Buffering":"no"});
-  reply.raw.write("event: connected
-data: {}
+  if(!order||order.userId!==u.id){
+    return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
+  }
 
-");
+  reply.hijack();
+  reply.raw.writeHead(200,{
+    "Content-Type":"text/event-stream",
+    "Cache-Control":"no-cache",
+    "Connection":"keep-alive",
+    "X-Accel-Buffering":"no"
+  });
+  reply.raw.write("event: connected\ndata: {}\n\n");
+
   let cleanup=()=>{};
   if(env.REDIS_URL){
     const sub=new Redis(env.REDIS_URL);
     await sub.subscribe("order:"+id);
-    sub.on("message",(_,message)=>reply.raw.write("event: order
-data: "+message+"
-
-"));
+    sub.on("message",(_,message)=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
     cleanup=()=>sub.disconnect();
   }else{
-    cleanup=subscribeLocalOrder(id,message=>reply.raw.write("event: order
-data: "+message+"
-
-"));
+    cleanup=subscribeLocalOrder(id,message=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
   }
-  const heartbeat=setInterval(()=>reply.raw.write(": keepalive
 
-"),25000);
-  req.raw.on("close",()=>{clearInterval(heartbeat);cleanup()});
+  const heartbeat=setInterval(()=>reply.raw.write(": keepalive\n\n"),25000);
+  req.raw.on("close",()=>{
+    clearInterval(heartbeat);
+    cleanup();
+  });
 });
 
 await app.register(authRoutes);
@@ -125,7 +152,11 @@ await app.register(paymentRoutes);
 
 const customerOut=path.join(process.cwd(),"apps/customer-web/out");
 if(existsSync(customerOut)){
-  await app.register(fastifyStatic,{root:customerOut,prefix:"/",index:["index.html"]});
+  await app.register(fastifyStatic,{
+    root:customerOut,
+    prefix:"/",
+    index:["index.html"]
+  });
 }
 
 await app.listen({host:"0.0.0.0",port:env.PORT});
