@@ -51,6 +51,13 @@ export async function partnerRoutes(app:FastifyInstance){
     return db.restaurant.update({where:{id},data:{isPaused:body.paused}});
   });
 
+  app.get("/delivery/profile",async(req)=>{
+    const u=requireRole(req,["DELIVERY_PARTNER"]);
+    const partner=await db.deliveryPartner.findUnique({where:{userId:u.id},include:{documents:true}});
+    if(!partner) throw Object.assign(new Error("Delivery partner profile not found"),{statusCode:404,code:"DELIVERY_PROFILE_NOT_FOUND"});
+    return partner;
+  });
+
   app.post("/delivery/online",async(req)=>{
     const u=requireRole(req,["DELIVERY_PARTNER"]);
     const b=z.object({online:z.boolean()}).parse(req.body);
