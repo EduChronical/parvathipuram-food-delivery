@@ -4,6 +4,9 @@ import helmet from "@fastify/helmet";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import rawBody from "fastify-raw-body";
+import fastifyStatic from "@fastify/static";
+import {existsSync} from "node:fs";
+import path from "node:path";
 import {Redis} from "ioredis";
 import {z,ZodError} from "zod";
 import {db} from "@ppm/database";
@@ -17,6 +20,7 @@ import {supportRoutes} from "./support.routes.js";
 import {paymentRoutes} from "./payment.routes.js";
 import {accountRoutes} from "./account.routes.js";
 import {registerSecurity,requireAuth} from "./security.js";
+import {subscribeLocalOrder} from "./realtime.js";
 
 const env=z.object({
   NODE_ENV:z.enum(["development","test","production"]).default("development"),
@@ -63,15 +67,20 @@ app.get("/orders/:id/events",async(req,reply)=>{
   const id=(req.params as any).id as string;
   const order=await db.order.findUnique({where:{id}});
   if(!order||order.userId!==u.id) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
-  if(!env.REDIS_URL) return reply.code(503).send({code:"REALTIME_UNAVAILABLE",message:"Realtime service unavailable",requestId:req.id});
-  const sub=new Redis(env.REDIS_URL);
   reply.hijack();
   reply.raw.writeHead(200,{"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","X-Accel-Buffering":"no"});
   reply.raw.write("event: connected\ndata: {}\n\n");
-  await sub.subscribe("order:"+id);
-  sub.on("message",(_,message)=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
+  let cleanup=()=>{};
+  if(env.REDIS_URL){
+    const sub=new Redis(env.REDIS_URL);
+    await sub.subscribe("order:"+id);
+    sub.on("message",(_,message)=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
+    cleanup=()=>sub.disconnect();
+  }else{
+    cleanup=subscribeLocalOrder(id,message=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
+  }
   const heartbeat=setInterval(()=>reply.raw.write(": keepalive\n\n"),25000);
-  req.raw.on("close",()=>{clearInterval(heartbeat);sub.disconnect()});
+  req.raw.on("close",()=>{clearInterval(heartbeat);cleanup()});
 });
 
 await app.register(authRoutes);
@@ -83,5 +92,10 @@ await app.register(partnerRoutes);
 await app.register(adminRoutes);
 await app.register(supportRoutes);
 await app.register(paymentRoutes);
+
+const customerOut=path.join(process.cwd(),"apps/customer-web/out");
+if(existsSync(customerOut)){
+  await app.register(fastifyStatic,{root:customerOut,prefix:"/",index:["index.html"]});
+}
 
 await app.listen({host:"0.0.0.0",port:env.PORT});
