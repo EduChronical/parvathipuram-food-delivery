@@ -78,6 +78,20 @@ export async function supportRoutes(app:FastifyInstance){
     return db.notification.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:100});
   });
 
+  app.patch("/notifications/:id/read",async(req,reply)=>{
+    const u=await requireAuth(req);
+    const {id}=z.object({id:z.string().uuid()}).parse(req.params);
+    const changed=await db.notification.updateMany({where:{id,userId:u.id},data:{readAt:new Date()}});
+    if(!changed.count) return reply.code(404).send({code:"NOTIFICATION_NOT_FOUND",message:"Notification not found",requestId:req.id});
+    return {ok:true};
+  });
+
+  app.post("/notifications/read-all",async(req)=>{
+    const u=await requireAuth(req);
+    const result=await db.notification.updateMany({where:{userId:u.id,readAt:null},data:{readAt:new Date()}});
+    return {ok:true,count:result.count};
+  });
+
   app.post("/analytics",async(req,reply)=>{
     const u=req.authUser;
     const b=z.object({name:z.enum(["restaurant_view","dish_view","search","filter_used","add_to_cart","remove_from_cart","checkout_started","coupon_applied","payment_started","payment_success","payment_failure","order_created","order_delivered","order_cancelled","review_submitted"]),properties:z.record(z.unknown()).optional(),sessionId:z.string().optional()}).parse(req.body);
