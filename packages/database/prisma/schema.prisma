@@ -838,7 +838,7 @@ model NotificationPreference {
 model PushSubscription {
   id String @id @default(uuid())
   userId String
-  token String @unique
+  target String @unique
   platform String @default("web")
   userAgent String?
   createdAt DateTime @default(now())
