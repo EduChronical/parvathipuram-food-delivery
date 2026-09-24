@@ -48,3 +48,6 @@ Keep the prior application deployment available until health, auth and order smo
 
 ## Backup
 Use automated PostgreSQL snapshots plus periodic restore drills. Version/object-lock important object storage according to retention policy. Keep credentials in the cloud secret store, not repository files.
+
+## Current cloud topology
+On constrained Railway plans, the customer PWA and API can run in one service; restaurant, delivery and admin portals run as separate web services. Redis is optional for a single API replica because order SSE has an in-process fallback; configure REDIS_URL for multi-replica fan-out and BullMQ workers.
