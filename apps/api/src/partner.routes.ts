@@ -4,6 +4,7 @@ import {db,OrderStatus,AssignmentStatus,RestaurantStatus,DocumentStatus} from "@
 import {haversineKm} from "@ppm/core";
 import {requireRole} from "./security.js";
 import {publishOrder} from "./realtime.js";
+import {notifyUser,notifyDeliveryPartners,orderStatusCopy} from "./notifications.js";
 
 async function restaurantIdsFor(userId:string){
   const [owners,staff]=await Promise.all([
@@ -114,6 +115,8 @@ export async function partnerRoutes(app:FastifyInstance){
         return order;
       },{isolationLevel:"Serializable"});
       await publishOrder(assignment.orderId,{type:"RIDER_ASSIGNED",orderId:assignment.orderId});
+      const copy=orderStatusCopy("DELIVERY_PARTNER_ASSIGNED");
+      await notifyUser(accepted.userId,"ORDER_STATUS",copy.title,copy.body,{orderId:accepted.id,status:"DELIVERY_PARTNER_ASSIGNED"});
       return {ok:true,accepted:true,orderId:accepted.id};
     }catch(e:any){
       return reply.code(e.statusCode??409).send({code:e.code??"ASSIGNMENT_CONFLICT",message:e.message,requestId:req.id});
@@ -164,6 +167,7 @@ export async function partnerRoutes(app:FastifyInstance){
     const ranked=riders.map(r=>({r,d:r.locations[0]?haversineKm(Number(order.restaurant.latitude),Number(order.restaurant.longitude),Number(r.locations[0].latitude),Number(r.locations[0].longitude)):999})).filter(x=>x.d<=8).sort((a,b)=>a.d-b.d).slice(0,5);
     if(!ranked.length) return reply.code(409).send({code:"NO_RIDERS_AVAILABLE",message:"No riders available",requestId:req.id});
     await db.deliveryAssignment.createMany({data:ranked.map(x=>({orderId,deliveryPartnerId:x.r.id,status:AssignmentStatus.OFFERED}))});
+    await notifyDeliveryPartners(ranked.map(x=>x.r.id),"DELIVERY_OFFER","New delivery request","A nearby order is available for delivery.",{orderId});
     return {offers:ranked.length};
   });
 
