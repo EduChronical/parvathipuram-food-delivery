@@ -1,5 +1,6 @@
 import {db,NotificationChannel} from "@ppm/database";
-import {emailProvider,smsProvider} from "./providers.js";
+import {emailProvider,sendPush,smsProvider} from "./providers.js";
+import {emailReady,fcmReady,smsReady} from "./integrations.js";
 
 type Payload=Record<string,unknown>|undefined;
 
@@ -10,21 +11,54 @@ export async function notifyUser(userId:string,type:string,title:string,body:str
       db.notificationPreference.findUnique({where:{userId}})
     ]);
     if(!user)return;
-    const inAppEnabled=prefs?.inApp??true;
-    if(inAppEnabled){
+
+    if(prefs?.inApp??true){
       await db.notification.create({data:{userId,channel:NotificationChannel.IN_APP,type,title,body,data:data as any,sentAt:new Date()}});
     }
-    const smsReady=(prefs?.sms??true)&&!!user.phone&&process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM;
-    if(smsReady){
+
+    if((prefs?.sms??true)&&!!user.phone&&smsReady()){
       const n=await db.notification.create({data:{userId,channel:NotificationChannel.SMS,type,title,body,data:data as any}});
-      try{await smsProvider().send(user.phone!,body);await db.notification.update({where:{id:n.id},data:{sentAt:new Date(),error:null}})}
-      catch(e:any){await db.notification.update({where:{id:n.id},data:{error:String(e?.message??e)}})}
+      try{
+        await smsProvider().send(user.phone!,body);
+        await db.notification.update({where:{id:n.id},data:{sentAt:new Date(),error:null}});
+      }catch(e:any){
+        await db.notification.update({where:{id:n.id},data:{error:String(e?.message??e)}});
+      }
     }
-    const emailReady=(prefs?.email??true)&&!!user.email&&process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM;
-    if(emailReady){
+
+    if((prefs?.email??true)&&!!user.email&&emailReady()){
       const n=await db.notification.create({data:{userId,channel:NotificationChannel.EMAIL,type,title,body,data:data as any}});
-      try{await emailProvider().send(user.email!,title,body);await db.notification.update({where:{id:n.id},data:{sentAt:new Date(),error:null}})}
-      catch(e:any){await db.notification.update({where:{id:n.id},data:{error:String(e?.message??e)}})}
+      try{
+        await emailProvider().send(user.email!,title,body);
+        await db.notification.update({where:{id:n.id},data:{sentAt:new Date(),error:null}});
+      }catch(e:any){
+        await db.notification.update({where:{id:n.id},data:{error:String(e?.message??e)}});
+      }
+    }
+
+    if((prefs?.push??true)&&fcmReady()){
+      const subscriptions=await db.pushSubscription.findMany({where:{userId},select:{id:true,target:true}});
+      if(subscriptions.length){
+        const n=await db.notification.create({data:{userId,channel:NotificationChannel.PUSH,type,title,body,data:data as any}});
+        let delivered=0;
+        const errors:string[]=[];
+        for(const subscription of subscriptions){
+          try{
+            const result=await sendPush(subscription.target,title,body,{type,...(data??{})} as any);
+            if(result.invalid){
+              await db.pushSubscription.deleteMany({where:{id:subscription.id}});
+            }else if(result.ok){
+              delivered++;
+            }
+          }catch(e:any){
+            errors.push(String(e?.message??e));
+          }
+        }
+        await db.notification.update({
+          where:{id:n.id},
+          data:delivered?{sentAt:new Date(),error:errors.length?errors.join("; ").slice(0,1000):null}:{error:(errors.join("; ")||"No active push subscription").slice(0,1000)}
+        });
+      }
     }
   }catch(e){
     console.error("notification persistence failed",{userId,type,error:String(e)});

@@ -1,0 +1,12 @@
+{
+  "name":"PPM Bites — Parvathipuram Food Delivery",
+  "short_name":"PPM Bites",
+  "description":"Local food delivery for Parvathipuram",
+  "start_url":"/",
+  "display":"standalone",
+  "background_color":"#fffdfa",
+  "theme_color":"#e6502c",
+  "icons":[
+    {"src":"/ppm-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}

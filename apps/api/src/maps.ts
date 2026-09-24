@@ -1,3 +1,4 @@
+import {mapsReady} from "./integrations.js";
 export type GeoResult={
   latitude:number;
   longitude:number;
@@ -69,7 +70,7 @@ class MapboxProvider implements MapsProvider{
 }
 
 export function mapsProvider():MapsProvider|null{
-  if(!process.env.MAP_API_KEY) return null;
+  if(!mapsReady()) return null;
   if(process.env.MAP_PROVIDER==="google") return new GoogleMapsProvider();
   if(process.env.MAP_PROVIDER==="mapbox") return new MapboxProvider();
   return null;

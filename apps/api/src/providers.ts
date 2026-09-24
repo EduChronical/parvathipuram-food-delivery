@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import {S3Client,PutObjectCommand} from "@aws-sdk/client-s3";
+import {emailReady,fcmReady,objectStorageReady,paymentReady,smsReady} from "./integrations.js";
 
 export type PaymentCreateInput={orderId:string;amountPaise:number;currency:string};
 export type PaymentCreateResult={providerOrderId:string;checkout:any};
@@ -47,7 +48,11 @@ class RazorpayProvider implements PaymentProvider{
 }
 
 export function paymentProvider():PaymentProvider{
-  return process.env.PAYMENT_PROVIDER==="razorpay"?new RazorpayProvider():new DevPaymentProvider();
+  if(process.env.PAYMENT_PROVIDER==="razorpay"){
+    if(!paymentReady()) throw Object.assign(new Error("Payment provider is not configured"),{code:"PAYMENT_PROVIDER_NOT_CONFIGURED"});
+    return new RazorpayProvider();
+  }
+  return new DevPaymentProvider();
 }
 
 export interface SmsProvider{send(to:string,body:string):Promise<void>}
@@ -63,7 +68,13 @@ class TwilioSms implements SmsProvider{
     if(!res.ok) throw new Error("SMS_DELIVERY_FAILED");
   }
 }
-export function smsProvider():SmsProvider{return process.env.SMS_PROVIDER==="twilio"?new TwilioSms():new DevSms()}
+export function smsProvider():SmsProvider{
+  if(process.env.SMS_PROVIDER==="twilio"){
+    if(!smsReady()) throw Object.assign(new Error("SMS provider is not configured"),{code:"SMS_PROVIDER_NOT_CONFIGURED"});
+    return new TwilioSms();
+  }
+  return new DevSms();
+}
 
 export interface EmailProvider{send(to:string,subject:string,body:string):Promise<void>}
 class DevEmail implements EmailProvider{async send(to:string,subject:string,body:string){console.info("DEV_EMAIL",{to,subject,body})}}
@@ -78,9 +89,16 @@ class ResendEmail implements EmailProvider{
     if(!res.ok) throw new Error("EMAIL_DELIVERY_FAILED");
   }
 }
-export function emailProvider():EmailProvider{return process.env.EMAIL_PROVIDER==="resend"?new ResendEmail():new DevEmail()}
+export function emailProvider():EmailProvider{
+  if(process.env.EMAIL_PROVIDER==="resend"){
+    if(!emailReady()) throw Object.assign(new Error("Email provider is not configured"),{code:"EMAIL_PROVIDER_NOT_CONFIGURED"});
+    return new ResendEmail();
+  }
+  return new DevEmail();
+}
 
 export function storageClient(){
+  if(!objectStorageReady()) throw Object.assign(new Error("Object storage is not configured"),{code:"STORAGE_PROVIDER_NOT_CONFIGURED"});
   return new S3Client({
     region:process.env.STORAGE_REGION??"auto",
     endpoint:process.env.STORAGE_ENDPOINT||undefined,
@@ -91,4 +109,73 @@ export function storageClient(){
 export async function putObject(key:string,body:Uint8Array,contentType:string){
   await storageClient().send(new PutObjectCommand({Bucket:process.env.STORAGE_BUCKET!,Key:key,Body:body,ContentType:contentType}));
   return (process.env.STORAGE_PUBLIC_URL?process.env.STORAGE_PUBLIC_URL.replace(/\/$/,"")+"/":"")+key;
+}
+
+
+type PushData=Record<string,string|number|boolean|null|undefined>;
+let googleAccessTokenCache:{token:string;expiresAt:number}|null=null;
+
+function b64url(value:string|Buffer){
+  return Buffer.from(value).toString("base64url");
+}
+
+async function googleAccessToken(){
+  if(!fcmReady()) throw Object.assign(new Error("Firebase Cloud Messaging is not configured"),{code:"FCM_NOT_CONFIGURED"});
+  if(googleAccessTokenCache&&googleAccessTokenCache.expiresAt>Date.now()+60_000) return googleAccessTokenCache.token;
+
+  const now=Math.floor(Date.now()/1000);
+  const header=b64url(JSON.stringify({alg:"RS256",typ:"JWT"}));
+  const claims=b64url(JSON.stringify({
+    iss:process.env.FCM_CLIENT_EMAIL,
+    scope:"https://www.googleapis.com/auth/firebase.messaging",
+    aud:"https://oauth2.googleapis.com/token",
+    iat:now,
+    exp:now+3600
+  }));
+  const unsigned=header+"."+claims;
+  const key=(process.env.FCM_PRIVATE_KEY??"").replace(/\\n/g,"\n");
+  const signature=crypto.sign("RSA-SHA256",Buffer.from(unsigned),key).toString("base64url");
+  const assertion=unsigned+"."+signature;
+
+  const body=new URLSearchParams({
+    grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion
+  });
+  const res=await fetch("https://oauth2.googleapis.com/token",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body
+  });
+  if(!res.ok) throw new Error("FCM_OAUTH_ERROR");
+  const data:any=await res.json();
+  const expiresIn=Math.max(60,Number(data.expires_in??3600));
+  googleAccessTokenCache={token:String(data.access_token),expiresAt:Date.now()+expiresIn*1000};
+  return googleAccessTokenCache.token;
+}
+
+export async function sendPush(target:string,title:string,body:string,data:PushData={}){
+  const projectId=process.env.FCM_PROJECT_ID!;
+  const accessToken=await googleAccessToken();
+  const stringData=Object.fromEntries(Object.entries(data).filter(([,v])=>v!==undefined&&v!==null).map(([k,v])=>[k,String(v)]));
+  const appOrigin=(process.env.APP_ORIGIN??"").split(",")[0]?.trim();
+  const link=typeof data.url==="string"?data.url:(appOrigin||undefined);
+  const icon=appOrigin?appOrigin.replace(/\/$/,"")+"/ppm-icon.svg":undefined;
+  const res=await fetch("https://fcm.googleapis.com/v1/projects/"+encodeURIComponent(projectId)+"/messages:send",{
+    method:"POST",
+    headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},
+    body:JSON.stringify({message:{
+      fid:target,
+      notification:{title,body},
+      data:stringData,
+      webpush:{
+        ...(link?{fcm_options:{link}}:{}),
+        notification:{...(icon?{icon,badge:icon}:{}),tag:String(data.orderId??data.type??"ppm-bites")}
+      }
+    }})
+  });
+  if(res.ok) return {ok:true,invalid:false};
+  const detail=await res.text();
+  const invalid=res.status===404||res.status===410||detail.includes("UNREGISTERED")||detail.includes("registration-token-not-registered");
+  if(invalid) return {ok:false,invalid:true};
+  throw new Error("FCM_DELIVERY_FAILED");
 }

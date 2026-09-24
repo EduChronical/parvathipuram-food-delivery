@@ -1,11 +1,12 @@
 import argon2 from "argon2";
 import {PrismaClient,RoleCode} from "@prisma/client";
 const db=new PrismaClient();
+const placeholder=/(example[-_ ]?placeholder|replace[-_ ]?with|changeme|dummy|placeholder|xxxxx|<.*>)/i;
 
 async function main(){
  const email=process.env.ADMIN_EMAIL;
  const initial=process.env.ADMIN_INITIAL_PASSWORD;
- if(!email||!initial||initial.length<12) throw new Error("Administrator bootstrap variables are required and password must be at least 12 characters.");
+ if(!email||!initial||initial.length<12||placeholder.test(email)||placeholder.test(initial)) throw new Error("Administrator bootstrap variables must contain real non-placeholder values and the password must be at least 12 characters.");
 
  let user=await db.user.findUnique({where:{email}});
  if(!user){

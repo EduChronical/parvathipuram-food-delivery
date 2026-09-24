@@ -115,6 +115,7 @@ model User {
   favorites Favorite[]
   reviews Review[]
   notifications Notification[]
+  pushSubscriptions PushSubscription[]
   supportTickets SupportTicket[] @relation("CustomerTickets")
   supportMessages SupportMessage[]
   otpChallenges OtpChallenge[]
@@ -832,6 +833,19 @@ model NotificationPreference {
   email Boolean @default(true)
   promotions Boolean @default(true)
   @@map("notification_preferences")
+}
+
+model PushSubscription {
+  id String @id @default(uuid())
+  userId String
+  target String @unique
+  platform String @default("web")
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model SupportTicket {
