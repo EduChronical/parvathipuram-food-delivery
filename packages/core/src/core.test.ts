@@ -4,6 +4,8 @@ import {assertTransition,calculatePricing,couponDiscount,deliveryFeePaise} from 
 
 test("valid and invalid order transitions",()=>{
   assert.doesNotThrow(()=>assertTransition("PLACED","RESTAURANT_CONFIRMED"));
+  assert.doesNotThrow(()=>assertTransition("READY_FOR_PICKUP","DELIVERY_PARTNER_ARRIVED_AT_RESTAURANT"));
+  assert.doesNotThrow(()=>assertTransition("DELIVERY_PARTNER_ARRIVED_AT_RESTAURANT","READY_FOR_PICKUP"));
   assert.throws(()=>assertTransition("DELIVERED","PREPARING"));
 });
 test("pricing is deterministic",()=>{
