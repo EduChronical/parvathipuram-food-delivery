@@ -1,0 +1,1 @@
+import "./globals.css";export const metadata={title:"PPM Bites — Restaurant Partner"};export default function Layout({children}:{children:React.ReactNode}){return <html lang="en"><body>{children}</body></html>}
