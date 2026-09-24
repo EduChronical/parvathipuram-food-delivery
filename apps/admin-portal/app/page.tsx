@@ -7,7 +7,7 @@ type Tab="Dashboard"|"Orders"|"Restaurants"|"Delivery Partners"|"Customers"|"Pay
 export default function AdminPortal(){
  const [logged,setLogged]=useState(false),[email,setEmail]=useState(""),[password,setPassword]=useState("");
  const [tab,setTab]=useState<Tab>("Dashboard"),[kpi,setKpi]=useState<any>(null),[pendingRestaurants,setPendingRestaurants]=useState<any[]>([]),[pendingRiders,setPendingRiders]=useState<any[]>([]);
- const [data,setData]=useState<any>(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
+ const [data,setData]=useState<any>(null),[integrations,setIntegrations]=useState<any>(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
  const nav:Tab[]=["Dashboard","Orders","Restaurants","Delivery Partners","Customers","Payments","Refunds","Promotions","Reviews","Finance","Analytics","Audit Logs","System"];
 
  useEffect(()=>setLogged(!!sessionStorage.getItem("ppm_access_token")),[]);
@@ -25,6 +25,10 @@ export default function AdminPortal(){
        Reviews:"/admin/reviews",Finance:"/admin/finance",Analytics:"/admin/analytics/events?days=7","Audit Logs":"/admin/audit",
        System:"/admin/cities"
      };
+     if(next==="System"){
+       const [cities,status]:any=await Promise.all([api("/admin/cities"),api("/admin/integrations/status").catch(()=>null)]);
+       setData(cities);setIntegrations(status);return;
+     }
      if(path[next])setData(await api(path[next]!));
    }catch(e:any){setMessage(e.message)}
  }
@@ -71,7 +75,7 @@ export default function AdminPortal(){
 
    {tab==="Audit Logs"&&<section className="card"><h2 className="text-xl font-bold">Audit trail</h2>{Array.isArray(data)&&data.length?<div className="list mt-4">{data.map((a:any)=><div className="row" key={a.id}><div><b>{a.action}</b><div className="muted text-sm">{a.resourceType} {a.resourceId??""}</div></div><span className="muted text-xs">{new Date(a.createdAt).toLocaleString()}</span></div>)}</div>:<EmptyState title="No audit events" body="Privileged actions will appear here."/>}</section>}
 
-   {tab==="System"&&<section className="grid cols-2"><div className="card"><h2 className="text-xl font-bold">Cities & service zones</h2>{Array.isArray(data)&&data.length?<div className="list mt-4">{data.map((c:any)=><div key={c.id} className="rounded-xl border border-[#e9e4dc] p-3"><b>{c.name}, {c.state}</b><div className="muted text-sm">{c._count?.restaurants??0} restaurants</div><div className="mt-2 flex flex-wrap gap-1">{c.zones?.map((z:any)=><Pill key={z.id}>{z.name} · {Number(z.radiusKm)} km</Pill>)}</div></div>)}</div>:<EmptyState title="No cities" body="Configure a launch city and service zones."/>}</div><div className="card"><h2 className="text-xl font-bold">Platform tools</h2><div className="mt-4 flex flex-col items-start gap-3"><a href="/configuration" className="button secondary inline-flex items-center">Feature flags</a><a href="/support" className="button secondary inline-flex items-center">Support dashboard</a><Button variant="secondary" onClick={sendCampaign}>Notification campaign</Button></div></div></section>}
+   {tab==="System"&&<><section className="grid cols-2"><div className="card"><h2 className="text-xl font-bold">Cities & service zones</h2>{Array.isArray(data)&&data.length?<div className="list mt-4">{data.map((c:any)=><div key={c.id} className="rounded-xl border border-[#e9e4dc] p-3"><b>{c.name}, {c.state}</b><div className="muted text-sm">{c._count?.restaurants??0} restaurants</div><div className="mt-2 flex flex-wrap gap-1">{c.zones?.map((z:any)=><Pill key={z.id}>{z.name} · {Number(z.radiusKm)} km</Pill>)}</div></div>)}</div>:<EmptyState title="No cities" body="Configure a launch city and service zones."/>}</div><div className="card"><h2 className="text-xl font-bold">Platform tools</h2><div className="mt-4 flex flex-col items-start gap-3"><a href="/configuration" className="button secondary inline-flex items-center">Feature flags</a><a href="/support" className="button secondary inline-flex items-center">Support dashboard</a><Button variant="secondary" onClick={sendCampaign}>Notification campaign</Button></div></div></section><section className="card mt-5"><div className="split"><div><span className="eyebrow">PROVIDER READINESS</span><h2 className="text-xl font-bold">External integrations</h2></div><Pill tone={integrations&&Object.values(integrations).every((x:any)=>x.configured)?"success":"warning"}>{integrations?Object.values(integrations).filter((x:any)=>x.configured).length+"/"+Object.keys(integrations).length+" ready":"Super-admin only"}</Pill></div>{integrations?<div className="grid cols-4 mt-4">{Object.entries(integrations).map(([name,value]:any)=><div key={name} className="rounded-xl border border-[#e9e4dc] p-3"><div className="split"><b className="capitalize">{name}</b><Pill tone={value.configured?"success":"warning"}>{value.configured?"Ready":"Pending"}</Pill></div><div className="muted mt-2 text-xs">{value.provider}</div>{!value.configured&&value.missing?.length>0&&<div className="muted mt-2 text-xs">Replace: {value.missing.join(", ")}</div>}</div>)}</div>:<p className="muted mt-3 text-sm">Provider readiness is visible to super administrators without exposing secret values.</p>}</section></>}
    {message&&<div className="toast">{message}</div>}
  </PortalShell>;
 }
