@@ -2,7 +2,7 @@
 CREATE TABLE "push_subscriptions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "token" TEXT NOT NULL,
+    "target" TEXT NOT NULL,
     "platform" TEXT NOT NULL DEFAULT 'web',
     "userAgent" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,7 +12,7 @@ CREATE TABLE "push_subscriptions" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "push_subscriptions_token_key" ON "push_subscriptions"("token");
+CREATE UNIQUE INDEX "push_subscriptions_target_key" ON "push_subscriptions"("target");
 
 -- CreateIndex
 CREATE INDEX "push_subscriptions_userId_idx" ON "push_subscriptions"("userId");
