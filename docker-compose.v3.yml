@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: parvathipuram_bites
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["5432:5432"]
+    volumes: ["ppm_postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U postgres -d parvathipuram_bites"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--appendonly","yes"]
+    ports: ["6379:6379"]
+    volumes: ["ppm_redis:/data"]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000","9001:9001"]
+    volumes: ["ppm_minio:/data"]
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.api
+    env_file: .env
+    ports: ["4000:4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  customer:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.web
+      args: { WORKSPACE: "@ppm/customer-web" }
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+  restaurant:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.web
+      args: { WORKSPACE: "@ppm/restaurant-portal" }
+    environment:
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports: ["3001:3001"]
+    depends_on: [api]
+
+  delivery:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.web
+      args: { WORKSPACE: "@ppm/delivery-portal" }
+    environment:
+      PORT: 3002
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports: ["3002:3002"]
+    depends_on: [api]
+
+  admin:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.web
+      args: { WORKSPACE: "@ppm/admin-portal" }
+    environment:
+      PORT: 3003
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports: ["3003:3003"]
+    depends_on: [api]
+
+volumes:
+  ppm_postgres:
+  ppm_redis:
+  ppm_minio:
