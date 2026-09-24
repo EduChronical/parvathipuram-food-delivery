@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: v3-ci-branch
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
