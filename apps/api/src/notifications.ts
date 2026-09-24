@@ -37,14 +37,14 @@ export async function notifyUser(userId:string,type:string,title:string,body:str
     }
 
     if((prefs?.push??true)&&fcmReady()){
-      const subscriptions=await db.pushSubscription.findMany({where:{userId},select:{id:true,token:true}});
+      const subscriptions=await db.pushSubscription.findMany({where:{userId},select:{id:true,target:true}});
       if(subscriptions.length){
         const n=await db.notification.create({data:{userId,channel:NotificationChannel.PUSH,type,title,body,data:data as any}});
         let delivered=0;
         const errors:string[]=[];
         for(const subscription of subscriptions){
           try{
-            const result=await sendPush(subscription.token,title,body,{type,...(data??{})} as any);
+            const result=await sendPush(subscription.target,title,body,{type,...(data??{})} as any);
             if(result.invalid){
               await db.pushSubscription.deleteMany({where:{id:subscription.id}});
             }else if(result.ok){
