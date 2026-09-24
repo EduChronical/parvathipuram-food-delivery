@@ -117,18 +117,30 @@ export async function partnerRoutes(app:FastifyInstance){
     return {offers:ranked.length};
   });
 
-  app.post("/onboarding/restaurant",async(req)=>{
+  app.post("/onboarding/restaurant",async(req,reply)=>{
     const u=requireRole(req,["RESTAURANT_OWNER","CUSTOMER"]);
-    const b=z.object({cityId:z.string().uuid(),name:z.string().min(2),phone:z.string().min(8),email:z.string().email().optional(),address:z.string().min(5),latitude:z.number(),longitude:z.number()}).parse(req.body);
+    const b=z.object({cityId:z.string().uuid().optional(),name:z.string().min(2),phone:z.string().min(8),email:z.string().email().optional(),address:z.string().min(5),latitude:z.number(),longitude:z.number()}).parse(req.body);
+    const city=b.cityId?await db.city.findUnique({where:{id:b.cityId}}):await db.city.findFirst({where:{name:"Parvathipuram",active:true}});
+    if(!city) return reply.code(503).send({code:"CITY_UNAVAILABLE",message:"Parvathipuram onboarding is temporarily unavailable",requestId:req.id});
     const slug=b.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+Date.now().toString(36);
-    const r=await db.restaurant.create({data:{...b,slug,status:RestaurantStatus.SUBMITTED,owners:{create:{userId:u.id,isPrimary:true}}}});
+    const r=await db.$transaction(async tx=>{
+      const restaurant=await tx.restaurant.create({data:{cityId:city.id,name:b.name,phone:b.phone,email:b.email,address:b.address,latitude:b.latitude,longitude:b.longitude,slug,status:RestaurantStatus.SUBMITTED,owners:{create:{userId:u.id,isPrimary:true}}}});
+      const role=await tx.role.findUniqueOrThrow({where:{code:"RESTAURANT_OWNER"}});
+      await tx.userRole.upsert({where:{userId_roleId:{userId:u.id,roleId:role.id}},update:{},create:{userId:u.id,roleId:role.id}});
+      return restaurant;
+    });
     return {id:r.id,status:r.status};
   });
 
   app.post("/onboarding/delivery",async(req)=>{
     const u=requireRole(req,["CUSTOMER","DELIVERY_PARTNER"]);
-    const b=z.object({vehicleType:z.string(),vehicleNumber:z.string().min(4)}).parse(req.body);
-    const partner=await db.deliveryPartner.upsert({where:{userId:u.id},update:{...b,status:DocumentStatus.PENDING},create:{userId:u.id,...b,status:DocumentStatus.PENDING}});
+    const b=z.object({vehicleType:z.string().min(2),vehicleNumber:z.string().min(4)}).parse(req.body);
+    const partner=await db.$transaction(async tx=>{
+      const delivery=await tx.deliveryPartner.upsert({where:{userId:u.id},update:{...b,status:DocumentStatus.PENDING},create:{userId:u.id,...b,status:DocumentStatus.PENDING}});
+      const role=await tx.role.findUniqueOrThrow({where:{code:"DELIVERY_PARTNER"}});
+      await tx.userRole.upsert({where:{userId_roleId:{userId:u.id,roleId:role.id}},update:{},create:{userId:u.id,roleId:role.id}});
+      return delivery;
+    });
     return {id:partner.id,status:partner.status};
   });
 }
