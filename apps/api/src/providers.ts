@@ -153,7 +153,7 @@ async function googleAccessToken(){
   return googleAccessTokenCache.token;
 }
 
-export async function sendPush(token:string,title:string,body:string,data:PushData={}){
+export async function sendPush(target:string,title:string,body:string,data:PushData={}){
   const projectId=process.env.FCM_PROJECT_ID!;
   const accessToken=await googleAccessToken();
   const stringData=Object.fromEntries(Object.entries(data).filter(([,v])=>v!==undefined&&v!==null).map(([k,v])=>[k,String(v)]));
@@ -164,11 +164,11 @@ export async function sendPush(token:string,title:string,body:string,data:PushDa
     method:"POST",
     headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},
     body:JSON.stringify({message:{
-      token,
+      fid:target,
       notification:{title,body},
       data:stringData,
       webpush:{
-        ...(link?{fcmOptions:{link}}:{}),
+        ...(link?{fcm_options:{link}}:{}),
         notification:{...(icon?{icon,badge:icon}:{}),tag:String(data.orderId??data.type??"ppm-bites")}
       }
     }})
