@@ -39,6 +39,50 @@ export async function accountRoutes(app:FastifyInstance){
     return {ok:true};
   });
 
+  app.patch("/me/profile",async(req)=>{
+    const u=await requireAuth(req);
+    const b=z.object({
+      name:z.string().min(2).max(120).optional(),
+      photoUrl:z.string().url().nullable().optional(),
+      language:z.string().min(2).max(12).optional(),
+      dietaryPreferences:z.record(z.unknown()).nullable().optional(),
+      preferences:z.record(z.unknown()).nullable().optional()
+    }).parse(req.body);
+    return db.profile.upsert({
+      where:{userId:u.id},
+      update:b as any,
+      create:{userId:u.id,name:b.name??"Customer",photoUrl:b.photoUrl??undefined,language:b.language??"en",dietaryPreferences:b.dietaryPreferences as any,preferences:b.preferences as any}
+    });
+  });
+
+  app.patch("/me/addresses/:id",async(req,reply)=>{
+    const u=await requireAuth(req);
+    const {id}=z.object({id:z.string().uuid()}).parse(req.params);
+    const b=z.object({
+      label:z.string().min(1).optional(),line1:z.string().min(2).optional(),line2:z.string().nullable().optional(),
+      locality:z.string().nullable().optional(),city:z.string().min(2).optional(),postalCode:z.string().nullable().optional(),
+      landmark:z.string().nullable().optional(),deliveryInstructions:z.string().max(500).nullable().optional(),
+      latitude:z.number().optional(),longitude:z.number().optional(),isDefault:z.boolean().optional()
+    }).parse(req.body);
+    const address=await db.address.findFirst({where:{id,userId:u.id}});
+    if(!address) return reply.code(404).send({code:"ADDRESS_NOT_FOUND",message:"Address not found",requestId:req.id});
+    return db.$transaction(async tx=>{
+      if(b.isDefault) await tx.address.updateMany({where:{userId:u.id,id:{not:id}},data:{isDefault:false}});
+      return tx.address.update({where:{id},data:b as any});
+    });
+  });
+
+  app.delete("/me/addresses/:id",async(req,reply)=>{
+    const u=await requireAuth(req);
+    const {id}=z.object({id:z.string().uuid()}).parse(req.params);
+    const address=await db.address.findFirst({where:{id,userId:u.id}});
+    if(!address) return reply.code(404).send({code:"ADDRESS_NOT_FOUND",message:"Address not found",requestId:req.id});
+    const referenced=await db.order.count({where:{addressId:id}});
+    if(referenced) return reply.code(409).send({code:"ADDRESS_IN_USE",message:"This address is referenced by an order and cannot be deleted; edit it instead.",requestId:req.id});
+    await db.address.delete({where:{id}});
+    return {ok:true};
+  });
+
   app.get("/me/sessions",async(req)=>{
     const u=await requireAuth(req);
     return db.session.findMany({where:{userId:u.id},select:{id:true,deviceName:true,ipAddress:true,userAgent:true,createdAt:true,expiresAt:true,revokedAt:true},orderBy:{createdAt:"desc"}});
