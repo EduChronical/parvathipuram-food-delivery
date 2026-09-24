@@ -5,7 +5,7 @@ import {requireAuth,requireRole} from "./security.js";
 import {integrationStatus} from "./integrations.js";
 
 const subscriptionSchema=z.object({
-  token:z.string().min(20).max(4096),
+  target:z.string().min(10).max(4096),
   platform:z.enum(["web","android","ios"]).default("web")
 });
 
@@ -23,16 +23,16 @@ export async function pushRoutes(app:FastifyInstance){
     const u=await requireAuth(req);
     const body=subscriptionSchema.parse(req.body);
     return db.pushSubscription.upsert({
-      where:{token:body.token},
+      where:{target:body.target},
       update:{userId:u.id,platform:body.platform,userAgent:req.headers["user-agent"]},
-      create:{userId:u.id,token:body.token,platform:body.platform,userAgent:req.headers["user-agent"]}
+      create:{userId:u.id,target:body.target,platform:body.platform,userAgent:req.headers["user-agent"]}
     });
   });
 
   app.delete("/push/subscriptions",async(req)=>{
     const u=await requireAuth(req);
-    const body=z.object({token:z.string().min(20).max(4096)}).parse(req.body);
-    await db.pushSubscription.deleteMany({where:{userId:u.id,token:body.token}});
+    const body=z.object({target:z.string().min(10).max(4096)}).parse(req.body);
+    await db.pushSubscription.deleteMany({where:{userId:u.id,target:body.target}});
     return {ok:true};
   });
 
