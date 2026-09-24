@@ -4,6 +4,7 @@ import type {FastifyInstance} from "fastify";
 import {db,OrderStatus,PaymentStatus,CouponType} from "@ppm/database";
 import {assertTransition,calculatePricing,couponDiscount,deliveryFeePaise,etaMinutes,haversineKm} from "@ppm/core";
 import {requireAuth,requireRole} from "./security.js";
+import {publishOrder} from "./realtime.js";
 
 const checkoutSchema=z.object({
   restaurantId:z.string().uuid(),addressId:z.string().uuid(),paymentMethod:z.enum(["UPI","CARD","NETBANKING","WALLET","COD"]),
@@ -149,11 +150,41 @@ export async function orderRoutes(app:FastifyInstance){
     const b=z.object({to:z.nativeEnum(OrderStatus),note:z.string().max(500).optional()}).parse(req.body);
     const order=await db.order.findUnique({where:{id}});
     if(!order) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
+
+    const privileged=u.roles.some(r=>["SUPER_ADMIN","SUPPORT_AGENT","CITY_MANAGER"].includes(r));
+    if(!privileged){
+      const restaurantRole=u.roles.some(r=>["RESTAURANT_OWNER","RESTAURANT_MANAGER","RESTAURANT_STAFF"].includes(r));
+      const riderRole=u.roles.includes("DELIVERY_PARTNER");
+      if(restaurantRole){
+        const owns=!!(await db.restaurantOwner.findFirst({where:{restaurantId:order.restaurantId,userId:u.id}}))||
+          !!(await db.restaurantStaff.findFirst({where:{restaurantId:order.restaurantId,userId:u.id,active:true}}));
+        const restaurantTargets=["RESTAURANT_CONFIRMED","PREPARING","READY_FOR_PICKUP","CANCELLED"];
+        if(!owns||!restaurantTargets.includes(b.to)) return reply.code(403).send({code:"FORBIDDEN",message:"Restaurant cannot update this order",requestId:req.id});
+      }else if(riderRole){
+        const assigned=await db.deliveryAssignment.findFirst({where:{orderId:id,partner:{userId:u.id},status:{in:["ACCEPTED","PICKED_UP"]}}});
+        const riderTargets=["DELIVERY_PARTNER_ARRIVED_AT_RESTAURANT","PICKED_UP","ON_THE_WAY","ARRIVED_AT_CUSTOMER","DELIVERED"];
+        if(!assigned||!riderTargets.includes(b.to)) return reply.code(403).send({code:"FORBIDDEN",message:"Delivery partner cannot update this order",requestId:req.id});
+      }else return reply.code(403).send({code:"FORBIDDEN",message:"Forbidden",requestId:req.id});
+    }
+
     assertTransition(order.status as any,b.to as any);
-    await db.$transaction([
-      db.order.update({where:{id},data:{status:b.to}}),
-      db.orderStatusHistory.create({data:{orderId:id,fromStatus:order.status,toStatus:b.to,actorUserId:u.id,note:b.note}})
-    ]);
+    await db.$transaction(async tx=>{
+      await tx.order.update({where:{id},data:{status:b.to}});
+      await tx.orderStatusHistory.create({data:{orderId:id,fromStatus:order.status,toStatus:b.to,actorUserId:u.id,note:b.note}});
+      if(b.to===OrderStatus.PICKED_UP){
+        await tx.deliveryAssignment.updateMany({where:{orderId:id,status:"ACCEPTED"},data:{status:"PICKED_UP",pickedUpAt:new Date()}});
+      }
+      if(b.to===OrderStatus.DELIVERED){
+        const assignment=await tx.deliveryAssignment.findFirst({where:{orderId:id,status:{in:["ACCEPTED","PICKED_UP"]}}});
+        if(assignment){
+          await tx.deliveryAssignment.update({where:{id:assignment.id},data:{status:"DELIVERED",deliveredAt:new Date()}});
+          await tx.deliveryPartner.update({where:{id:assignment.deliveryPartnerId},data:{activeDeliveries:{decrement:1}}});
+          await tx.deliveryEarning.create({data:{deliveryPartnerId:assignment.deliveryPartnerId,orderId:id,basePayPaise:order.deliveryFeePaise,totalPaise:order.deliveryFeePaise}});
+        }
+        await tx.restaurantSettlement.upsert({where:{orderId:id},update:{orderValuePaise:order.itemSubtotalPaise,payoutPaise:order.itemSubtotalPaise},create:{restaurantId:order.restaurantId,orderId:id,orderValuePaise:order.itemSubtotalPaise,payoutPaise:order.itemSubtotalPaise}});
+      }
+    });
+    await publishOrder(id,{type:"ORDER_STATUS",orderId:id,status:b.to});
     return {ok:true,status:b.to};
   });
 }
