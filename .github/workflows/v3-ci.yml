@@ -16,6 +16,20 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ppm_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ppm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,8 +39,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install
-        run: npm install
+      - name: Install\n        run: npm ci
 
       - name: Dependency audit snapshot
         run: npm audit --json > dependency-audit.json || true
@@ -79,6 +92,42 @@ jobs:
           JWT_SECRET: ci-only-placeholder-secret-that-is-long-enough
           NEXT_PUBLIC_API_URL: http://localhost:4000
         run: npm run build
+
+      - name: End-to-end API smoke
+        env:
+          NODE_ENV: test
+          PORT: 4000
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ppm_test
+          JWT_SECRET: ci-e2e-secret-that-is-long-enough-for-fastify-jwt
+          APP_ORIGIN: http://localhost:3000
+          PAYMENT_PROVIDER: dev
+          SMS_PROVIDER: dev
+          EMAIL_PROVIDER: dev
+          DEMO_PASSWORD: DemoPass!2026
+          ADMIN_EMAIL: admin@ppmbites.local
+          ADMIN_INITIAL_PASSWORD: PPMAdmin!2026Change
+        run: |
+          npm run db:migrate
+          npm run db:seed
+          npm run bootstrap:admin -w @ppm/database
+          npm run start -w @ppm/api > /tmp/ppm-api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true' EXIT
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:4000/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4000/health
+          node e2e-smoke.mjs
+
+      - name: Upload API smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-api-log-${{ github.sha }}
+          path: /tmp/ppm-api.log
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Commit reproducible lockfile
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
