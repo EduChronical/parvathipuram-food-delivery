@@ -64,7 +64,7 @@ export default function AccountPage(){
   async function signOut(){const refreshToken=sessionStorage.getItem("ppm_refresh_token");try{if(refreshToken)await api("/auth/logout",{method:"POST",body:JSON.stringify({refreshToken})})}catch{}clearSession();setMe(null);setAddresses([]);setSessions([]);setMode("signin")}
 
   if(me)return <main className="mx-auto max-w-6xl p-4 md:p-8">
-    <div className="split mb-7"><a href="/"><Brand/></a><div className="flex flex-wrap gap-2"><a className="button secondary inline-flex items-center" href="/orders">Orders</a><a className="button secondary inline-flex items-center" href="/favorites">Favorites</a><Button variant="ghost" onClick={signOut}>Sign out</Button></div></div>
+    <div className="split mb-7"><a href="/"><Brand/></a><div className="flex flex-wrap gap-2"><a className="button secondary inline-flex items-center" href="/orders">Orders</a><a className="button secondary inline-flex items-center" href="/notifications">Notifications</a><a className="button secondary inline-flex items-center" href="/favorites">Favorites</a><Button variant="ghost" onClick={signOut}>Sign out</Button></div></div>
 
     <div className="grid cols-2">
       <section className="card">
