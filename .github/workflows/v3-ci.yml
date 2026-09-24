@@ -39,7 +39,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install\n        run: npm ci
+      - name: Install
+        run: npm ci
 
       - name: Dependency audit snapshot
         run: npm audit --json > dependency-audit.json || true
