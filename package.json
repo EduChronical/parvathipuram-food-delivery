@@ -14,7 +14,7 @@
     "db:migrate": "npm run migrate:deploy -w @ppm/database",
     "db:seed": "npm run seed -w @ppm/database",
     "build": "npm run build -w @ppm/core && npm run db:generate && npm run build -w @ppm/database && npm run build -w @ppm/api && npm run build -w @ppm/customer-web && npm run build -w @ppm/restaurant-portal && npm run build -w @ppm/delivery-portal && npm run build -w @ppm/admin-portal",
-    "typecheck": "npm run typecheck -w @ppm/core && npm run db:generate && npm run typecheck -w @ppm/database && npm run typecheck -w @ppm/api && npm run typecheck -w @ppm/customer-web && npm run typecheck -w @ppm/restaurant-portal && npm run typecheck -w @ppm/delivery-portal && npm run typecheck -w @ppm/admin-portal",
+    "typecheck": "npm run typecheck -w @ppm/core && npm run build -w @ppm/core && npm run db:generate && npm run typecheck -w @ppm/database && npm run build -w @ppm/database && npm run typecheck -w @ppm/api && npm run typecheck -w @ppm/customer-web && npm run typecheck -w @ppm/restaurant-portal && npm run typecheck -w @ppm/delivery-portal && npm run typecheck -w @ppm/admin-portal",
     "test": "npm run test -w @ppm/core",
     "validate": "npm run typecheck && npm test && npm run build"
   },
