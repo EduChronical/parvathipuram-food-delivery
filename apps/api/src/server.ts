@@ -21,7 +21,8 @@ import {adminOpsRoutes} from "./admin-ops.routes.js";
 import {supportRoutes} from "./support.routes.js";
 import {paymentRoutes} from "./payment.routes.js";
 import {accountRoutes} from "./account.routes.js";
-import {engagementRoutes} from "./engagement.routes.js";\nimport {integrationRoutes} from "./integration.routes.js";
+import {engagementRoutes} from "./engagement.routes.js";
+import {integrationRoutes} from "./integration.routes.js";
 import {registerSecurity,requireAuth} from "./security.js";
 import {subscribeLocalOrder} from "./realtime.js";
 
@@ -66,7 +67,8 @@ app.get("/platform/capabilities",async()=>({
   onlinePayments:process.env.PAYMENT_PROVIDER==="razorpay"&&!!process.env.PAYMENT_API_KEY&&!!process.env.PAYMENT_API_SECRET,
   smsOtp:process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM,
   emailOtp:process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM,
-  objectStorage:!!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY,\n  maps:!!process.env.MAP_API_KEY&&["google","mapbox"].includes(process.env.MAP_PROVIDER??""),
+  objectStorage:!!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY,
+  maps:!!process.env.MAP_API_KEY&&["google","mapbox"].includes(process.env.MAP_PROVIDER??""),
   realtime:env.REDIS_URL?"redis":"single-instance"
 }));
 
@@ -82,17 +84,28 @@ app.get("/orders/:id/events",async(req,reply)=>{
   if(!order||order.userId!==u.id) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
   reply.hijack();
   reply.raw.writeHead(200,{"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","X-Accel-Buffering":"no"});
-  reply.raw.write("event: connected\ndata: {}\n\n");
+  reply.raw.write("event: connected
+data: {}
+
+");
   let cleanup=()=>{};
   if(env.REDIS_URL){
     const sub=new Redis(env.REDIS_URL);
     await sub.subscribe("order:"+id);
-    sub.on("message",(_,message)=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
+    sub.on("message",(_,message)=>reply.raw.write("event: order
+data: "+message+"
+
+"));
     cleanup=()=>sub.disconnect();
   }else{
-    cleanup=subscribeLocalOrder(id,message=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
+    cleanup=subscribeLocalOrder(id,message=>reply.raw.write("event: order
+data: "+message+"
+
+"));
   }
-  const heartbeat=setInterval(()=>reply.raw.write(": keepalive\n\n"),25000);
+  const heartbeat=setInterval(()=>reply.raw.write(": keepalive
+
+"),25000);
   req.raw.on("close",()=>{clearInterval(heartbeat);cleanup()});
 });
 
@@ -106,7 +119,8 @@ await app.register(partnerMenuRoutes);
 await app.register(adminRoutes);
 await app.register(adminOpsRoutes);
 await app.register(supportRoutes);
-await app.register(engagementRoutes);\nawait app.register(integrationRoutes);
+await app.register(engagementRoutes);
+await app.register(integrationRoutes);
 await app.register(paymentRoutes);
 
 const customerOut=path.join(process.cwd(),"apps/customer-web/out");
