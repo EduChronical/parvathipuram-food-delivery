@@ -120,7 +120,7 @@ export async function adminOpsRoutes(app:FastifyInstance){
 
   app.get("/admin/cities",async(req)=>{
     requireRole(req,["SUPER_ADMIN","CITY_MANAGER"]);
-    return db.city.findMany({include:{serviceZones:true,_count:{select:{restaurants:true}}},orderBy:{name:"asc"}});
+    return db.city.findMany({include:{zones:true,_count:{select:{restaurants:true}}},orderBy:{name:"asc"}});
   });
 
   app.post("/admin/cities",async(req)=>{
