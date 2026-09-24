@@ -25,6 +25,8 @@ import {engagementRoutes} from "./engagement.routes.js";
 import {integrationRoutes} from "./integration.routes.js";
 import {registerSecurity,requireAuth} from "./security.js";
 import {subscribeLocalOrder} from "./realtime.js";
+import {publicCapabilities,redisReady} from "./integrations.js";
+import {pushRoutes} from "./push.routes.js";
 
 const env=z.object({
   NODE_ENV:z.enum(["development","test","production"]).default("development"),
@@ -65,7 +67,7 @@ app.get("/health",async()=>{
   const dbStart=Date.now();
   await db.$queryRawUnsafe("SELECT 1");
   let redis="disabled";
-  if(env.REDIS_URL){
+  if(redisReady()&&env.REDIS_URL){
     const r=new Redis(env.REDIS_URL,{lazyConnect:true,maxRetriesPerRequest:1});
     try{
       await r.connect();
@@ -83,16 +85,7 @@ app.get("/health",async()=>{
   };
 });
 
-app.get("/platform/capabilities",async()=>({
-  passwordAuth:true,
-  cod:true,
-  onlinePayments:process.env.PAYMENT_PROVIDER==="razorpay"&&!!process.env.PAYMENT_API_KEY&&!!process.env.PAYMENT_API_SECRET,
-  smsOtp:process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM,
-  emailOtp:process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM,
-  objectStorage:!!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY,
-  maps:!!process.env.MAP_API_KEY&&["google","mapbox"].includes(process.env.MAP_PROVIDER??""),
-  realtime:env.REDIS_URL?"redis":"single-instance"
-}));
+app.get("/platform/capabilities",async()=>publicCapabilities());
 
 app.get("/me",async req=>{
   const u=await requireAuth(req);
@@ -120,7 +113,7 @@ app.get("/orders/:id/events",async(req,reply)=>{
   reply.raw.write("event: connected\ndata: {}\n\n");
 
   let cleanup=()=>{};
-  if(env.REDIS_URL){
+  if(redisReady()&&env.REDIS_URL){
     const sub=new Redis(env.REDIS_URL);
     await sub.subscribe("order:"+id);
     sub.on("message",(_,message)=>reply.raw.write("event: order\ndata: "+message+"\n\n"));
@@ -148,6 +141,7 @@ await app.register(adminOpsRoutes);
 await app.register(supportRoutes);
 await app.register(engagementRoutes);
 await app.register(integrationRoutes);
+await app.register(pushRoutes);
 await app.register(paymentRoutes);
 
 const customerOut=path.join(process.cwd(),"apps/customer-web/out");
