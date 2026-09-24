@@ -88,6 +88,7 @@ jobs:
           git add package-lock.json
           if ! git diff --cached --quiet; then
             git commit -m "v3: pin npm dependency graph"
+            git restore .
             git pull --rebase origin main
             git push origin HEAD:main
           fi
