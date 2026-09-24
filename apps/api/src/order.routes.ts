@@ -185,6 +185,21 @@ export async function orderRoutes(app:FastifyInstance){
       }
     });
     await publishOrder(id,{type:"ORDER_STATUS",orderId:id,status:b.to});
+
+    if([OrderStatus.RESTAURANT_CONFIRMED,OrderStatus.PREPARING,OrderStatus.READY_FOR_PICKUP].includes(b.to)){
+      const already=await db.deliveryAssignment.count({where:{orderId:id,status:{in:["OFFERED","ACCEPTED","PICKED_UP"]}}});
+      if(!already){
+        const full=await db.order.findUnique({where:{id},include:{restaurant:true}});
+        const riders=await db.deliveryPartner.findMany({
+          where:{online:true,status:"APPROVED",activeDeliveries:{lt:2}},
+          include:{locations:{orderBy:{createdAt:"desc"},take:1}}
+        });
+        const ranked=riders
+          .map(r=>({r,d:r.locations[0]?haversineKm(Number(full!.restaurant.latitude),Number(full!.restaurant.longitude),Number(r.locations[0].latitude),Number(r.locations[0].longitude)):999}))
+          .filter(x=>x.d<=8).sort((a,b)=>a.d-b.d).slice(0,5);
+        if(ranked.length) await db.deliveryAssignment.createMany({data:ranked.map(x=>({orderId:id,deliveryPartnerId:x.r.id,status:"OFFERED"}))});
+      }
+    }
     return {ok:true,status:b.to};
   });
 }
