@@ -6,15 +6,13 @@ import {z} from "zod";
 import {db,DocumentStatus} from "@ppm/database";
 import {putObject} from "./providers.js";
 import {mapsProvider} from "./maps.js";
+import {objectStorageReady} from "./integrations.js";
 import {requireAuth,requireRole} from "./security.js";
 
 const IMAGE_MIME=new Set(["image/jpeg","image/png","image/webp"]);
 const DOC_MIME=new Set([...IMAGE_MIME,"application/pdf"]);
 const MAX_FILE=5*1024*1024;
 
-function storageReady(){
-  return !!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY;
-}
 function extFor(filename:string,mime:string){
   const ext=path.extname(filename).toLowerCase();
   if(ext&&ext.length<=8) return ext;
@@ -25,7 +23,7 @@ function extFor(filename:string,mime:string){
   return "";
 }
 async function readUpload(req:any,allowed:Set<string>){
-  if(!storageReady()) throw Object.assign(new Error("Object storage is not configured"),{statusCode:503,code:"STORAGE_UNAVAILABLE"});
+  if(!objectStorageReady()) throw Object.assign(new Error("Object storage is not configured"),{statusCode:503,code:"STORAGE_UNAVAILABLE"});
   const file=await req.file({limits:{fileSize:MAX_FILE,files:1}});
   if(!file) throw Object.assign(new Error("A file is required"),{statusCode:400,code:"FILE_REQUIRED"});
   if(!allowed.has(file.mimetype)) throw Object.assign(new Error("Unsupported file type"),{statusCode:415,code:"FILE_TYPE_UNSUPPORTED"});
