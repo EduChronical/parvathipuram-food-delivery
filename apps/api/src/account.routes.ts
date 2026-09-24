@@ -6,8 +6,13 @@ import {requireAuth,otpHash} from "./security.js";
 import {smsProvider,emailProvider} from "./providers.js";
 
 export async function accountRoutes(app:FastifyInstance){
-  app.post("/auth/forgot-password",{config:{rateLimit:{max:5,timeWindow:"15 minutes"}}},async(req)=>{
+  app.post("/auth/forgot-password",{config:{rateLimit:{max:5,timeWindow:"15 minutes"}}},async(req,reply)=>{
     const b=z.object({identifier:z.string().min(3)}).parse(req.body);
+    const isEmail=b.identifier.includes("@");
+    const deliveryReady=isEmail
+      ? process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM
+      : process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM;
+    if(!deliveryReady) return reply.code(503).send({code:"RECOVERY_UNAVAILABLE",message:"Password recovery delivery is temporarily unavailable.",requestId:req.id});
     const user=await db.user.findFirst({where:{OR:[{email:b.identifier},{phone:b.identifier}]}});
     if(user){
       const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));

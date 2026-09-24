@@ -17,6 +17,10 @@ export async function orderRoutes(app:FastifyInstance){
     const idem=String(req.headers["idempotency-key"]??"");
     if(idem.length<8) return reply.code(400).send({code:"IDEMPOTENCY_KEY_REQUIRED",message:"Idempotency-Key header required",requestId:req.id});
     const body=checkoutSchema.parse(req.body);
+    const onlinePaymentReady=process.env.PAYMENT_PROVIDER==="razorpay"&&!!process.env.PAYMENT_API_KEY&&!!process.env.PAYMENT_API_SECRET;
+    if(process.env.NODE_ENV==="production"&&body.paymentMethod!=="COD"&&!onlinePaymentReady){
+      return reply.code(503).send({code:"ONLINE_PAYMENTS_UNAVAILABLE",message:"Online payments are temporarily unavailable. Please use cash on delivery.",requestId:req.id});
+    }
     const hash=crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
     const existing=await db.idempotencyKey.findUnique({where:{userId_scope_key:{userId:u.id,scope:"checkout",key:idem}}});
     if(existing){
@@ -98,7 +102,7 @@ export async function orderRoutes(app:FastifyInstance){
 
   app.post("/payments/:orderId/dev-confirm",async(req,reply)=>{
     const u=await requireAuth(req);
-    if((process.env.PAYMENT_PROVIDER??"dev")!=="dev") return reply.code(404).send({code:"NOT_FOUND",message:"Not found",requestId:req.id});
+    if(process.env.NODE_ENV==="production"||(process.env.PAYMENT_PROVIDER??"dev")!=="dev") return reply.code(404).send({code:"NOT_FOUND",message:"Not found",requestId:req.id});
     const {orderId}=z.object({orderId:z.string().uuid()}).parse(req.params);
     const order=await db.order.findFirst({where:{id:orderId,userId:u.id},include:{payments:true}});
     if(!order) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});

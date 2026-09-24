@@ -8,6 +8,8 @@ import {smsProvider,emailProvider} from "./providers.js";
 const loginSchema=z.object({identifier:z.string().min(3),password:z.string().min(8)});
 const otpRequestSchema=z.object({destination:z.string().min(8),purpose:z.enum(["SIGNUP","LOGIN","RESET_PASSWORD","CHANGE_PHONE"])});
 const otpVerifySchema=z.object({destination:z.string().min(8),purpose:z.enum(["SIGNUP","LOGIN","RESET_PASSWORD","CHANGE_PHONE"]),code:z.string().length(6),name:z.string().min(2).optional()});
+const emailOtpReady=()=>process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM;
+const smsOtpReady=()=>process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM;
 
 export async function authRoutes(app:FastifyInstance){
   app.post("/auth/register",{config:{rateLimit:{max:5,timeWindow:"10 minutes"}}},async(req,reply)=>{
@@ -19,10 +21,13 @@ export async function authRoutes(app:FastifyInstance){
       email:body.email.toLowerCase(),passwordHash:await argon2.hash(body.password),
       profile:{create:{name:body.name}},wallet:{create:{}},roles:{create:{roleId:role.id}}
     }});
-    const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
-    await db.otpChallenge.create({data:{userId:user.id,destination:user.email!,purpose:"SIGNUP",codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
-    await emailProvider().send(user.email!,"Verify your PPM Bites email","Your PPM Bites verification code is "+code+". It expires in 5 minutes.");
-    return {ok:true,verificationRequired:true,developmentCode:process.env.NODE_ENV==="production"?undefined:code};
+    if(emailOtpReady()){
+      const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
+      await db.otpChallenge.create({data:{userId:user.id,destination:user.email!,purpose:"SIGNUP",codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
+      await emailProvider().send(user.email!,"Verify your PPM Bites email","Your PPM Bites verification code is "+code+". It expires in 5 minutes.");
+      return {ok:true,verificationRequired:true,developmentCode:process.env.NODE_ENV==="production"?undefined:code};
+    }
+    return {ok:true,verificationRequired:false};
   });
 
   app.post("/auth/login",{config:{rateLimit:{max:10,timeWindow:"1 minute"}}},async(req,reply)=>{
@@ -34,12 +39,16 @@ export async function authRoutes(app:FastifyInstance){
     return issueTokens(app,user.id,{ip:req.ip,ua:req.headers["user-agent"]});
   });
 
-  app.post("/auth/otp/request",{config:{rateLimit:{max:5,timeWindow:"10 minutes"}}},async(req)=>{
+  app.post("/auth/otp/request",{config:{rateLimit:{max:5,timeWindow:"10 minutes"}}},async(req,reply)=>{
     const body=otpRequestSchema.parse(req.body);
+    const isEmail=body.destination.includes("@");
+    if((isEmail&&!emailOtpReady())||(!isEmail&&!smsOtpReady())){
+      return reply.code(503).send({code:"VERIFICATION_UNAVAILABLE",message:"Verification delivery is temporarily unavailable. Use password sign-in.",requestId:req.id});
+    }
     const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
     await db.otpChallenge.create({data:{destination:body.destination,purpose:body.purpose,codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
     const text="Your PPM Bites verification code is "+code+". It expires in 5 minutes.";
-    if(body.destination.includes("@")) await emailProvider().send(body.destination,"PPM Bites verification code",text);
+    if(isEmail) await emailProvider().send(body.destination,"PPM Bites verification code",text);
     else await smsProvider().send(body.destination,text);
     return {ok:true,expiresInSeconds:300,developmentCode:process.env.NODE_ENV==="production"?undefined:code};
   });

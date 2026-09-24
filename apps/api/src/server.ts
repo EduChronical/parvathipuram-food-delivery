@@ -57,6 +57,16 @@ app.get("/health",async()=>{
   return {ok:true,database:{ok:true,latencyMs:Date.now()-dbStart},redis,node:process.version,time:new Date().toISOString()};
 });
 
+app.get("/platform/capabilities",async()=>({
+  passwordAuth:true,
+  cod:true,
+  onlinePayments:process.env.PAYMENT_PROVIDER==="razorpay"&&!!process.env.PAYMENT_API_KEY&&!!process.env.PAYMENT_API_SECRET,
+  smsOtp:process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM,
+  emailOtp:process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM,
+  objectStorage:!!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY,
+  realtime:env.REDIS_URL?"redis":"single-instance"
+}));
+
 app.get("/me",async req=>{
   const u=await requireAuth(req);
   return db.user.findUnique({where:{id:u.id},include:{profile:true,roles:{include:{role:true}},wallet:true}});

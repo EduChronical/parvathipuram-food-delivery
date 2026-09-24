@@ -1,34 +1,17 @@
 "use client";
 import {useEffect,useState} from "react";
-import {api,Button,EmptyState,money,Pill,PortalShell,Stat} from "@ppm/ui";
-
+import {api,Button,clearSession,EmptyState,money,Pill,PortalShell,saveSession,Stat} from "@ppm/ui";
 export default function AdminPortal(){
- const [logged,setLogged]=useState(false),[email,setEmail]=useState(""),[password,setPassword]=useState("");
- const [kpi,setKpi]=useState<any>(null),[restaurants,setRestaurants]=useState<any[]>([]),[message,setMessage]=useState("");
+ const [logged,setLogged]=useState(false),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[kpi,setKpi]=useState<any>(null),[restaurants,setRestaurants]=useState<any[]>([]),[message,setMessage]=useState("");
  useEffect(()=>setLogged(!!sessionStorage.getItem("ppm_access_token")),[]);
  useEffect(()=>{if(logged)load()},[logged]);
-
- async function login(e:React.FormEvent){
-  e.preventDefault();
-  try{const d:any=await api("/auth/login",{method:"POST",body:JSON.stringify({identifier:email,password})});sessionStorage.setItem("ppm_access_token",d.accessToken);setLogged(true)}
-  catch(e:any){setMessage(e.message)}
- }
- async function load(){
-  try{const [a,b]:any=await Promise.all([api("/admin/kpis"),api("/admin/restaurants/pending")]);setKpi(a);setRestaurants(b)}
-  catch(e:any){setMessage(e.message)}
- }
- async function setStatus(id:string,status:string){
-  try{await api("/admin/restaurants/"+id+"/status",{method:"PATCH",body:JSON.stringify({status})});await load()}
-  catch(e:any){setMessage(e.message)}
- }
-
- if(!logged)return <main className="mx-auto max-w-md p-5 pt-20"><div className="card"><span className="eyebrow">PLATFORM ADMIN</span><h1 className="my-3 text-3xl font-black">Operate with visibility</h1><form className="stack mt-5" onSubmit={login}><input className="input" type="email" placeholder="Admin email" value={email} onChange={e=>setEmail(e.target.value)}/><input className="input" type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}/><Button type="submit">Sign in</Button></form></div>{message&&<div className="toast">{message}</div>}</main>;
-
- return <PortalShell title="Platform control room" nav={["Dashboard","Orders","Restaurants","Delivery Partners","Customers","Payments","Refunds","Promotions","Support","Reviews","Finance","Analytics","Configuration","Audit Logs","System"]} active="Dashboard" actions={<Button variant="secondary" onClick={load}>Refresh</Button>}>
+ async function login(e:React.FormEvent){e.preventDefault();try{const d:any=await api("/auth/login",{method:"POST",body:JSON.stringify({identifier:email,password})});saveSession(d);setLogged(true);setPassword("")}catch(e:any){setMessage(e.message)}}
+ async function load(){try{const [a,b]:any=await Promise.all([api("/admin/kpis"),api("/admin/restaurants/pending")]);setKpi(a);setRestaurants(b)}catch(e:any){setMessage(e.message)}}
+ async function setStatus(id:string,status:string){try{await api("/admin/restaurants/"+id+"/status",{method:"PATCH",body:JSON.stringify({status})});await load()}catch(e:any){setMessage(e.message)}}
+ if(!logged)return <main className="mx-auto max-w-md p-5 pt-20"><div className="card"><span className="eyebrow">PLATFORM ADMIN</span><h1 className="my-3 text-3xl font-black">Operate with visibility</h1><form className="stack mt-5" onSubmit={login}><input className="input" type="email" placeholder="Admin email" value={email} onChange={e=>setEmail(e.target.value)} required/><input className="input" type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required/><Button type="submit">Sign in</Button></form></div>{message&&<div className="toast">{message}</div>}</main>;
+ return <PortalShell title="Platform control room" nav={["Dashboard","Orders","Restaurants","Delivery Partners","Customers","Payments","Refunds","Promotions","Support","Reviews","Finance","Analytics","Configuration","Audit Logs","System"]} active="Dashboard" actions={<div className="flex gap-2"><Button variant="secondary" onClick={load}>Refresh</Button><Button variant="ghost" onClick={()=>{clearSession();setLogged(false)}}>Sign out</Button></div>}>
   <div className="grid cols-4 mb-5"><Stat label="24h GMV" value={money(kpi?.gmvPaise??0)}/><Stat label="Orders" value={kpi?.totalOrders??0}/><Stat label="Active restaurants" value={kpi?.activeRestaurants??0}/><Stat label="Online riders" value={kpi?.activeRiders??0}/></div>
-  <section className="card"><div className="split"><div><span className="eyebrow">ONBOARDING</span><h2 className="text-xl font-bold">Restaurant approvals</h2></div><Pill tone="warning">{restaurants.length} pending</Pill></div>
-  {restaurants.length?<div className="list mt-4">{restaurants.map(r=><div className="row" key={r.id}><div><b>{r.name}</b><div className="muted text-sm">{r.address}</div></div><div className="flex gap-2"><Button variant="danger" onClick={()=>setStatus(r.id,"REJECTED")}>Reject</Button><Button onClick={()=>setStatus(r.id,"APPROVED")}>Approve</Button></div></div>)}</div>:<EmptyState title="No pending applications" body="Submitted restaurant applications will appear here."/>}</section>
-  <div className="mt-5 flex gap-3"><a className="button secondary inline-flex items-center" href="/support">Support dashboard</a><a className="button secondary inline-flex items-center" href="/configuration">Configuration</a></div>
-  {message&&<div className="toast">{message}</div>}
- </PortalShell>
+  <section className="card"><div className="split"><div><span className="eyebrow">ONBOARDING</span><h2 className="text-xl font-bold">Restaurant approvals</h2></div><Pill tone="warning">{restaurants.length} pending</Pill></div>{restaurants.length?<div className="list mt-4">{restaurants.map(r=><div className="row" key={r.id}><div><b>{r.name}</b><div className="muted text-sm">{r.address}</div></div><div className="flex gap-2"><Button variant="danger" onClick={()=>setStatus(r.id,"REJECTED")}>Reject</Button><Button onClick={()=>setStatus(r.id,"APPROVED")}>Approve</Button></div></div>)}</div>:<EmptyState title="No pending applications" body="Submitted restaurant applications will appear here."/>}</section>
+  <div className="mt-5 flex gap-3"><a className="button secondary inline-flex items-center" href="/support">Support dashboard</a><a className="button secondary inline-flex items-center" href="/configuration">Configuration</a></div>{message&&<div className="toast">{message}</div>}
+ </PortalShell>;
 }
