@@ -37,6 +37,15 @@ export async function adminRoutes(app:FastifyInstance){
     return updated;
   });
 
+  app.get("/admin/delivery-partners/pending",async(req)=>{
+    requireRole(req,["SUPER_ADMIN","CITY_MANAGER"]);
+    return db.deliveryPartner.findMany({
+      where:{status:DocumentStatus.PENDING},
+      include:{user:{include:{profile:true}}},
+      orderBy:{user:{createdAt:"asc"}}
+    });
+  });
+
   app.patch("/admin/delivery-partners/:id/status",async(req)=>{
     const u=requireRole(req,["SUPER_ADMIN","CITY_MANAGER"]);
     const {id}=z.object({id:z.string().uuid()}).parse(req.params);

@@ -4,6 +4,17 @@ import {api,Brand,Button,EmptyState,money,Pill,clearSession} from "@ppm/ui";
 
 type Restaurant={id:string;slug:string;name:string;description?:string;avgRating:string|number;ratingCount:number;prepMinutes:number;avgCostForTwoPaise:number;vegOnly:boolean;distanceKm?:number|null;estimatedDeliveryMinutes?:number|null;menuItems?:any[]};
 type MenuRestaurant=Restaurant&{categories:{id:string;name:string;items:any[]}[]};
+const localDirectory=[
+ {name:"Zaikas Green Chutneys",category:"South Indian"},
+ {name:"Apna Darbar",category:"North Indian · Biryani"},
+ {name:"Delicious Fried Chicken",category:"Fast food · Pizza · Burgers"},
+ {name:"Mana Inti Kitchen",category:"Wraps · Sandwiches · Fast food"},
+ {name:"Madhuram Authentic Telugu Kitchen",category:"Telugu · South Indian · Biryani"},
+ {name:"Taj Royal Food Street",category:"Andhra · South Indian"},
+ {name:"Biryanis And More",category:"Biryani · Kebab · Chinese"},
+ {name:"Helapuri Multicuisine Resturant",category:"Biryani · Chinese · Andhra"}
+];
+const groceryDirectory=[{name:"More Supermarket",category:"Groceries · Supermarket"}];
 
 export default function CustomerApp(){
  const [token,setToken]=useState<string|null>(null);
@@ -26,6 +37,8 @@ export default function CustomerApp(){
     <div className="mb-4 flex gap-2 overflow-auto pb-1"><Pill>Fast delivery</Pill><Pill>Top rated</Pill><Pill>Veg</Pill><Pill>Offers</Pill><Pill>Budget friendly</Pill></div>
     <h2 className="mb-4 text-2xl font-bold">Restaurants near you</h2>
     {restaurants.length?<div className="grid cols-3">{restaurants.map(r=><button key={r.id} onClick={()=>openRestaurant(r.slug)} className="card text-left transition hover:-translate-y-1"><div className="mb-4 flex h-36 items-end rounded-2xl bg-gradient-to-br from-[#ffdfc7] via-[#f7b98d] to-[#e6502c] p-4"><span className="pill">{r.vegOnly?"Pure veg":"Multi-cuisine"}</span></div><div className="split"><h3 className="text-lg font-bold">{r.name}</h3><Pill tone="success">★ {Number(r.avgRating).toFixed(1)}</Pill></div><p className="muted mt-1 line-clamp-2 text-sm">{r.description}</p><div className="mt-4 flex justify-between text-sm"><span>{r.estimatedDeliveryMinutes??r.prepMinutes} min</span><span>{money(r.avgCostForTwoPaise)} for two</span></div></button>)}</div>:<EmptyState title="No restaurants found" body="Try a broader search or another location."/>}
+    <section className="mt-8"><div className="split mb-4"><div><span className="eyebrow">LOCAL DIRECTORY</span><h2 className="mt-1 text-2xl font-bold">More places in Parvathipuram</h2><p className="muted text-sm">Public directory listings only. Ordering activates only after the business completes PPM Bites partner onboarding.</p></div></div><div className="grid cols-3">{localDirectory.map(x=><div key={x.name} className="card"><div className="mb-3 flex h-24 items-center justify-center rounded-2xl bg-[#f3eee7] text-4xl">🍽️</div><h3 className="font-bold">{x.name}</h3><p className="muted mt-1 text-sm">{x.category}</p><div className="mt-4"><Pill tone="warning">Not yet orderable</Pill></div></div>)}</div></section>
+    <section className="mt-8 rounded-[28px] bg-[#e8f4ee] p-6 md:p-8"><div className="split"><div><span className="eyebrow">INSTANT GROCERIES</span><h2 className="mt-1 text-2xl font-black">Local grocery delivery</h2><p className="muted mt-1">The grocery vertical is separated from restaurant ordering and is onboarding local stores.</p><div className="mt-4 flex flex-wrap gap-2">{groceryDirectory.map(x=><span key={x.name} className="pill">{x.name} · onboarding pending</span>)}</div></div><a href="/partner" className="button secondary inline-flex items-center">Join as a local partner</a></div></section>
     <section className="mt-8 rounded-[28px] border border-[#e9e4dc] bg-white p-6 md:p-8"><div className="split"><div><span className="eyebrow">GROW WITH PPM BITES</span><h2 className="mt-1 text-2xl font-black">Own a restaurant or want to deliver?</h2><p className="muted mt-1">Apply directly online. Partner applications are reviewed before going live.</p></div><a href="/partner" className="button primary inline-flex items-center">Partner with us →</a></div></section>
    </main>{message&&<div className="toast">{message}</div>}
  </div>
