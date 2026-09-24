@@ -1,7 +1,7 @@
 import {z} from "zod";
 import type {FastifyInstance} from "fastify";
 import {db,RestaurantStatus,DocumentStatus,PaymentStatus} from "@ppm/database";
-import {requireRole} from "./security.js";
+import {requireRole} from "./security.js";\nimport {paymentProvider} from "./providers.js";
 
 export async function adminRoutes(app:FastifyInstance){
   app.get("/admin/kpis",async(req)=>{
@@ -64,9 +64,28 @@ export async function adminRoutes(app:FastifyInstance){
     const order=await db.order.findUnique({where:{id:b.orderId},include:{payments:{where:{status:PaymentStatus.CAPTURED},take:1}}});
     if(!order) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
     if(b.amountPaise>order.totalPaise) return reply.code(400).send({code:"REFUND_TOO_LARGE",message:"Refund exceeds order total",requestId:req.id});
-    const refund=await db.refund.create({data:{orderId:b.orderId,paymentId:order.payments[0]?.id,amountPaise:b.amountPaise,reason:b.reason,initiatorUserId:u.id,idempotencyKey:b.idempotencyKey,status:PaymentStatus.REFUND_PENDING}});
+    const payment=order.payments[0];
+    if(!payment?.providerPaymentId) return reply.code(409).send({code:"REFUND_PROVIDER_REFERENCE_MISSING",message:"Captured payment reference is unavailable for automatic refund",requestId:req.id});
+    const refund=await db.refund.create({data:{orderId:b.orderId,paymentId:payment.id,amountPaise:b.amountPaise,reason:b.reason,initiatorUserId:u.id,idempotencyKey:b.idempotencyKey,status:PaymentStatus.REFUND_PENDING}});
     await db.auditLog.create({data:{actorUserId:u.id,action:"REFUND_INITIATED",resourceType:"refund",resourceId:refund.id,newValues:{orderId:b.orderId,amountPaise:b.amountPaise,reason:b.reason},requestId:req.id}});
-    return reply.code(201).send(refund);
+    try{
+      const providerResult=await paymentProvider().refundPayment({providerPaymentId:payment.providerPaymentId,amountPaise:b.amountPaise,reason:b.reason,idempotencyKey:b.idempotencyKey});
+      const full=b.amountPaise>=payment.amountPaise;
+      const updated=await db.$transaction(async tx=>{
+        const r=await tx.refund.update({where:{id:refund.id},data:{providerRefundId:providerResult.providerRefundId,status:PaymentStatus.REFUNDED}});
+        await tx.payment.update({where:{id:payment.id},data:{status:full?PaymentStatus.REFUNDED:PaymentStatus.PARTIALLY_REFUNDED}});
+        if(full){
+          await tx.order.update({where:{id:order.id},data:{status:"REFUNDED",paymentStatus:PaymentStatus.REFUNDED}});
+          await tx.orderStatusHistory.create({data:{orderId:order.id,fromStatus:order.status,toStatus:"REFUNDED",actorUserId:u.id,note:b.reason}});
+        }
+        await tx.auditLog.create({data:{actorUserId:u.id,action:"REFUND_COMPLETED",resourceType:"refund",resourceId:refund.id,newValues:{providerRefundId:providerResult.providerRefundId,amountPaise:b.amountPaise},requestId:req.id}});
+        return r;
+      });
+      return reply.code(201).send(updated);
+    }catch(err){
+      req.log.error({err,refundId:refund.id},"Refund provider call failed");
+      return reply.code(502).send({code:"REFUND_PROVIDER_FAILED",message:"Refund was recorded but the payment provider did not complete it",refundId:refund.id,requestId:req.id});
+    }
   });
 
   app.get("/admin/audit",async(req)=>{
