@@ -15,6 +15,7 @@ import {partnerRoutes} from "./partner.routes.js";
 import {adminRoutes} from "./admin.routes.js";
 import {supportRoutes} from "./support.routes.js";
 import {paymentRoutes} from "./payment.routes.js";
+import {accountRoutes} from "./account.routes.js";
 import {registerSecurity,requireAuth} from "./security.js";
 
 const env=z.object({
@@ -74,6 +75,7 @@ app.get("/orders/:id/events",async(req,reply)=>{
 });
 
 await app.register(authRoutes);
+await app.register(accountRoutes);
 await app.register(catalogRoutes);
 await app.register(cartRoutes);
 await app.register(orderRoutes);
