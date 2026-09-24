@@ -3,13 +3,17 @@ import {S3Client,PutObjectCommand} from "@aws-sdk/client-s3";
 
 export type PaymentCreateInput={orderId:string;amountPaise:number;currency:string};
 export type PaymentCreateResult={providerOrderId:string;checkout:any};
+export type RefundInput={providerPaymentId:string;amountPaise:number;reason:string;idempotencyKey:string};
+export type RefundResult={providerRefundId:string};
 export interface PaymentProvider{
   createPayment(input:PaymentCreateInput):Promise<PaymentCreateResult>;
+  refundPayment(input:RefundInput):Promise<RefundResult>;
   verifyWebhook(raw:string,signature:string|undefined):boolean;
 }
 
 class DevPaymentProvider implements PaymentProvider{
   async createPayment(i:PaymentCreateInput){return {providerOrderId:"dev_"+i.orderId,checkout:{mode:"dev"}}}
+  async refundPayment(i:RefundInput){return {providerRefundId:"dev_refund_"+i.idempotencyKey}}
   verifyWebhook(){return true}
 }
 
@@ -21,6 +25,18 @@ class RazorpayProvider implements PaymentProvider{
     if(!res.ok) throw new Error("PAYMENT_PROVIDER_ERROR");
     const data:any=await res.json();
     return {providerOrderId:data.id,checkout:{keyId:key,orderId:data.id,amount:i.amountPaise,currency:i.currency}};
+  }
+  async refundPayment(i:RefundInput){
+    const key=process.env.PAYMENT_API_KEY!,secret=process.env.PAYMENT_API_SECRET!;
+    const basic=Buffer.from(key+":"+secret).toString("base64");
+    const res=await fetch("https://api.razorpay.com/v1/payments/"+encodeURIComponent(i.providerPaymentId)+"/refund",{
+      method:"POST",
+      headers:{Authorization:"Basic "+basic,"Content-Type":"application/json"},
+      body:JSON.stringify({amount:i.amountPaise,notes:{reason:i.reason,ppmIdempotencyKey:i.idempotencyKey}})
+    });
+    if(!res.ok) throw new Error("REFUND_PROVIDER_ERROR");
+    const data:any=await res.json();
+    return {providerRefundId:String(data.id)};
   }
   verifyWebhook(raw:string,signature:string|undefined){
     if(!signature||!process.env.PAYMENT_WEBHOOK_SECRET) return false;
