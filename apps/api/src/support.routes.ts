@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {FastifyInstance} from "fastify";
-import {db,Prisma} from "@ppm/database";
+import {db,Prisma,TicketStatus} from "@ppm/database";
 import {requireAuth,requireRole} from "./security.js";
 
 export async function supportRoutes(app:FastifyInstance){
@@ -30,8 +30,35 @@ export async function supportRoutes(app:FastifyInstance){
 
   app.get("/support/tickets",async(req)=>{
     const u=await requireAuth(req);
-    if(u.roles.some(r=>["SUPPORT_AGENT","SUPER_ADMIN"].includes(r))) return db.supportTicket.findMany({include:{messages:true},orderBy:{createdAt:"desc"},take:100});
+    if(u.roles.some(r=>["SUPPORT_AGENT","SUPER_ADMIN"].includes(r))) return db.supportTicket.findMany({include:{messages:true,order:{include:{restaurant:true,payments:true,refunds:true}},customer:{include:{profile:true}}},orderBy:{createdAt:"desc"},take:100});
     return db.supportTicket.findMany({where:{customerId:u.id},include:{messages:{where:{internal:false}}},orderBy:{createdAt:"desc"}});
+  });
+
+  app.patch("/support/tickets/:id",async(req,reply)=>{
+    const u=requireRole(req,["SUPPORT_AGENT","SUPER_ADMIN"]);
+    const {id}=z.object({id:z.string().uuid()}).parse(req.params);
+    const b=z.object({
+      status:z.nativeEnum(TicketStatus).optional(),
+      priority:z.enum(["LOW","NORMAL","HIGH","URGENT"]).optional(),
+      assignedToUserId:z.string().uuid().nullable().optional(),
+      assignToSelf:z.boolean().optional()
+    }).parse(req.body);
+    const ticket=await db.supportTicket.findUnique({where:{id}});
+    if(!ticket) return reply.code(404).send({code:"TICKET_NOT_FOUND",message:"Ticket not found",requestId:req.id});
+    const assignedToUserId=b.assignToSelf?u.id:b.assignedToUserId;
+    const updated=await db.supportTicket.update({
+      where:{id},
+      data:{
+        status:b.status,priority:b.priority,
+        ...(assignedToUserId!==undefined?{assignedToUserId}: {})
+      }
+    });
+    await db.auditLog.create({data:{
+      actorUserId:u.id,action:"SUPPORT_TICKET_UPDATED",resourceType:"support_ticket",resourceId:id,
+      oldValues:{status:ticket.status,priority:ticket.priority,assignedToUserId:ticket.assignedToUserId},
+      newValues:{status:updated.status,priority:updated.priority,assignedToUserId:updated.assignedToUserId},requestId:req.id
+    }});
+    return updated;
   });
 
   app.post("/support/tickets/:id/messages",async(req,reply)=>{
