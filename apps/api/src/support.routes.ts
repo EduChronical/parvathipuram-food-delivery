@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {FastifyInstance} from "fastify";
-import {db} from "@ppm/database";
+import {db,Prisma} from "@ppm/database";
 import {requireAuth,requireRole} from "./security.js";
 
 export async function supportRoutes(app:FastifyInstance){
@@ -46,7 +46,7 @@ export async function supportRoutes(app:FastifyInstance){
   app.post("/analytics",async(req,reply)=>{
     const u=req.authUser;
     const b=z.object({name:z.enum(["restaurant_view","dish_view","search","filter_used","add_to_cart","remove_from_cart","checkout_started","coupon_applied","payment_started","payment_success","payment_failure","order_created","order_delivered","order_cancelled","review_submitted"]),properties:z.record(z.unknown()).optional(),sessionId:z.string().optional()}).parse(req.body);
-    await db.analyticsEvent.create({data:{userId:u?.id,sessionId:b.sessionId,name:b.name,properties:b.properties}});
+    await db.analyticsEvent.create({data:{userId:u?.id,sessionId:b.sessionId,name:b.name,properties:b.properties as Prisma.InputJsonValue|undefined}});
     return reply.code(202).send({ok:true});
   });
 }
