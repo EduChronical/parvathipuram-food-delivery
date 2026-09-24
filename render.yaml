@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: parvathipuram-food-delivery-1
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_HS256_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        value: parvathipuram-bites
+      - key: JWT_AUDIENCE
+        value: parvathipuram-bites-api
+      - key: SYSTEM_ACTOR_USER_ID
+        sync: false
+      - key: PAYMENT_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMENT_ALLOWED_PROVIDERS
+        sync: false
+      - key: SMS_PROVIDER_URL
+        sync: false
+      - key: SMS_PROVIDER_API_KEY
+        sync: false
+      - key: SMS_SENDER_ID
+        value: PVBITES
+  - type: worker
+    name: parvathipuram-food-delivery-worker
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_HS256_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        value: parvathipuram-bites
+      - key: JWT_AUDIENCE
+        value: parvathipuram-bites-api
+      - key: SYSTEM_ACTOR_USER_ID
+        sync: false
+      - key: PAYMENT_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMENT_ALLOWED_PROVIDERS
+        sync: false
+      - key: SMS_PROVIDER_URL
+        sync: false
+      - key: SMS_PROVIDER_API_KEY
+        sync: false
+      - key: SMS_SENDER_ID
+        value: PVBITES

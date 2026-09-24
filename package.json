@@ -1,19 +1,19 @@
 {
-  "name": "parvathipuram‑food‑delivery",
-  "version": "1.0.0",
-  "description": "Zero‑commission local food delivery prototype Parvathipuram",
-  "main": "index.js",
+  "name": "parvathipuram-bites-phase2-backend",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
-    "start": "node index.js"
+    "build": "npm --prefix frontend ci && npm --prefix frontend run build",
+    "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "check": "find src -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
-    "cors": "^2.8.5",
-    "express": "^4.21.0",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.13.0"
-  },
-  "engines": {
-    "node": ">=20"
+    "pg": "^8.13.1"
   }
 }
