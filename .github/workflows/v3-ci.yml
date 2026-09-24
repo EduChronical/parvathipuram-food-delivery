@@ -39,6 +39,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Refresh lockfile
+        run: npm install --package-lock-only
+
       - name: Install
         run: npm ci
 
