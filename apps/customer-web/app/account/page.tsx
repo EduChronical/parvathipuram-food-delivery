@@ -1,12 +1,13 @@
 "use client";
 import {useEffect,useState} from "react";
 import {api,Brand,Button,clearSession,saveSession,Pill} from "@ppm/ui";
+import {disableBrowserPush,enableBrowserPush,firebaseWebConfigured} from "../../lib/push";
 
-type Caps={passwordAuth:boolean;cod:boolean;onlinePayments:boolean;smsOtp:boolean;emailOtp:boolean};
+type Caps={passwordAuth:boolean;cod:boolean;onlinePayments:boolean;smsOtp:boolean;emailOtp:boolean;pushNotifications?:boolean};
 type Mode="signin"|"register"|"otp"|"verifySignup"|"reset";
 
 export default function AccountPage(){
-  const [caps,setCaps]=useState<Caps>({passwordAuth:true,cod:true,onlinePayments:false,smsOtp:false,emailOtp:false});
+  const [caps,setCaps]=useState<Caps>({passwordAuth:true,cod:true,onlinePayments:false,smsOtp:false,emailOtp:false,pushNotifications:false});
   const [me,setMe]=useState<any>(null),[addresses,setAddresses]=useState<any[]>([]),[sessions,setSessions]=useState<any[]>([]),[notificationPrefs,setNotificationPrefs]=useState<any>({inApp:true,push:true,sms:true,email:true,promotions:true});
   const [mode,setMode]=useState<Mode>("signin"),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
   const [identifier,setIdentifier]=useState(""),[password,setPassword]=useState(""),[name,setName]=useState(""),[email,setEmail]=useState("");
@@ -14,8 +15,9 @@ export default function AccountPage(){
   const [address,setAddress]=useState({label:"Home",line1:"",locality:"Parvathipuram",city:"Parvathipuram",postalCode:"535501",latitude:18.783,longitude:83.426,isDefault:true});
   const [profileForm,setProfileForm]=useState({name:"",language:"en",vegetarian:false,vegan:false});
   const [passwordForm,setPasswordForm]=useState({currentPassword:"",newPassword:""});
+  const [pushEnabled,setPushEnabled]=useState(false);
 
-  useEffect(()=>{api<Caps>("/platform/capabilities").then(setCaps).catch(()=>{});loadAccount()},[]);
+  useEffect(()=>{api<Caps>("/platform/capabilities").then(setCaps).catch(()=>{});setPushEnabled(!!localStorage.getItem("ppm_fcm_token"));loadAccount()},[]);
   async function loadAccount(){
     if(typeof window==="undefined"||!sessionStorage.getItem("ppm_access_token"))return;
     try{
@@ -49,6 +51,18 @@ export default function AccountPage(){
   }
   async function saveNotifications(){
     try{setNotificationPrefs(await api("/me/notification-preferences",{method:"PATCH",body:JSON.stringify(notificationPrefs)}));setMessage("Notification preferences updated")}catch(e:any){setMessage(e.message)}
+  }
+  async function enablePush(){
+    setBusy(true);setMessage("");
+    try{await enableBrowserPush();setPushEnabled(true);setNotificationPrefs((p:any)=>({...p,push:true}));setMessage("Browser push notifications enabled")}
+    catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+  async function disablePush(){
+    setBusy(true);setMessage("");
+    try{await disableBrowserPush();setPushEnabled(false);setMessage("Browser push notifications disabled")}
+    catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
   }
   async function revokeSession(id:string){try{await api("/me/sessions/"+id,{method:"DELETE"});await loadAccount();setMessage("Session revoked")}catch(e:any){setMessage(e.message)}}
   async function changePassword(e:React.FormEvent){e.preventDefault();setBusy(true);try{await api("/auth/password",{method:"POST",body:JSON.stringify(passwordForm)});clearSession();setMe(null);setPasswordForm({currentPassword:"",newPassword:""});setMessage("Password changed. Please sign in again.")}catch(e:any){setMessage(e.message)}finally{setBusy(false)}}
@@ -93,7 +107,7 @@ export default function AccountPage(){
     </section>
 
     <div className="grid cols-2 mt-5">
-      <section className="card"><span className="eyebrow">NOTIFICATIONS</span><h2 className="mt-1 text-xl font-bold">Notification preferences</h2><div className="stack mt-4">{(["inApp","push","sms","email","promotions"] as const).map(k=><label key={k} className="flex items-center justify-between gap-3"><span>{k==="inApp"?"In-app":k[0].toUpperCase()+k.slice(1)}</span><input type="checkbox" checked={!!notificationPrefs[k]} onChange={e=>setNotificationPrefs({...notificationPrefs,[k]:e.target.checked})}/></label>)}</div><Button onClick={saveNotifications} style={{marginTop:16}}>Save preferences</Button></section>
+      <section className="card"><span className="eyebrow">NOTIFICATIONS</span><h2 className="mt-1 text-xl font-bold">Notification preferences</h2><div className="stack mt-4">{(["inApp","push","sms","email","promotions"] as const).map(k=><label key={k} className="flex items-center justify-between gap-3"><span>{k==="inApp"?"In-app":k[0].toUpperCase()+k.slice(1)}</span><input type="checkbox" checked={!!notificationPrefs[k]} onChange={e=>setNotificationPrefs({...notificationPrefs,[k]:e.target.checked})}/></label>)}</div><Button onClick={saveNotifications} style={{marginTop:16}}>Save preferences</Button><div className="mt-4 border-t border-[#e9e4dc] pt-4"><div className="split"><div><b>Browser push</b><div className="muted text-xs">{pushEnabled?"Enabled on this browser":caps.pushNotifications&&firebaseWebConfigured()?"Available":"Waiting for Firebase credentials"}</div></div>{pushEnabled?<Button variant="ghost" disabled={busy} onClick={disablePush}>Disable</Button>:<Button variant="secondary" disabled={busy||!caps.pushNotifications||!firebaseWebConfigured()} onClick={enablePush}>Enable push</Button>}</div></div></section>
       <section className="card"><span className="eyebrow">PRIVACY</span><h2 className="mt-1 text-xl font-bold">Your data</h2><p className="muted mt-2 text-sm">Download a JSON copy of your account data, or request deletion.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}>Export my data</Button><Button variant="danger" onClick={deleteAccount}>Delete account</Button></div></section>
     </div>
     {message&&<div className="toast">{message}</div>}
