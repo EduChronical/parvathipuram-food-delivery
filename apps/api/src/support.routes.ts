@@ -9,8 +9,16 @@ export async function supportRoutes(app:FastifyInstance){
     const b=z.object({orderId:z.string().uuid(),restaurantRating:z.number().int().min(1).max(5),foodRating:z.number().int().min(1).max(5).optional(),deliveryRating:z.number().int().min(1).max(5).optional(),text:z.string().max(1500).optional()}).parse(req.body);
     const order=await db.order.findFirst({where:{id:b.orderId,userId:u.id,status:"DELIVERED"}});
     if(!order) return reply.code(409).send({code:"REVIEW_NOT_ELIGIBLE",message:"Only completed orders can be reviewed",requestId:req.id});
-    try{return await db.review.create({data:{...b,userId:u.id,restaurantId:order.restaurantId}})}
-    catch{return reply.code(409).send({code:"REVIEW_EXISTS",message:"This order was already reviewed",requestId:req.id})}
+    try{
+      return await db.$transaction(async tx=>{
+        const review=await tx.review.create({data:{...b,userId:u.id,restaurantId:order.restaurantId}});
+        const aggregate=await tx.review.aggregate({where:{restaurantId:order.restaurantId,status:"PUBLISHED"},_avg:{restaurantRating:true},_count:{restaurantRating:true}});
+        await tx.restaurant.update({where:{id:order.restaurantId},data:{avgRating:aggregate._avg.restaurantRating??0,ratingCount:aggregate._count.restaurantRating}});
+        return review;
+      });
+    }catch{
+      return reply.code(409).send({code:"REVIEW_EXISTS",message:"This order was already reviewed",requestId:req.id});
+    }
   });
 
   app.post("/support/tickets",async(req)=>{
