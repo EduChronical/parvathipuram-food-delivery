@@ -21,7 +21,7 @@ import {adminOpsRoutes} from "./admin-ops.routes.js";
 import {supportRoutes} from "./support.routes.js";
 import {paymentRoutes} from "./payment.routes.js";
 import {accountRoutes} from "./account.routes.js";
-import {engagementRoutes} from "./engagement.routes.js";
+import {engagementRoutes} from "./engagement.routes.js";\nimport {integrationRoutes} from "./integration.routes.js";
 import {registerSecurity,requireAuth} from "./security.js";
 import {subscribeLocalOrder} from "./realtime.js";
 
@@ -66,7 +66,7 @@ app.get("/platform/capabilities",async()=>({
   onlinePayments:process.env.PAYMENT_PROVIDER==="razorpay"&&!!process.env.PAYMENT_API_KEY&&!!process.env.PAYMENT_API_SECRET,
   smsOtp:process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM,
   emailOtp:process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM,
-  objectStorage:!!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY,
+  objectStorage:!!process.env.STORAGE_BUCKET&&!!process.env.STORAGE_ACCESS_KEY&&!!process.env.STORAGE_SECRET_KEY,\n  maps:!!process.env.MAP_API_KEY&&["google","mapbox"].includes(process.env.MAP_PROVIDER??""),
   realtime:env.REDIS_URL?"redis":"single-instance"
 }));
 
@@ -106,7 +106,7 @@ await app.register(partnerMenuRoutes);
 await app.register(adminRoutes);
 await app.register(adminOpsRoutes);
 await app.register(supportRoutes);
-await app.register(engagementRoutes);
+await app.register(engagementRoutes);\nawait app.register(integrationRoutes);
 await app.register(paymentRoutes);
 
 const customerOut=path.join(process.cwd(),"apps/customer-web/out");
