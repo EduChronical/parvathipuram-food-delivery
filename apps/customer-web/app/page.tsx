@@ -20,10 +20,13 @@ export default function CustomerApp(){
  const [token,setToken]=useState<string|null>(null);
  const [restaurants,setRestaurants]=useState<Restaurant[]>([]),[selected,setSelected]=useState<MenuRestaurant|null>(null),[cart,setCart]=useState<any>(null),[search,setSearch]=useState(""),[message,setMessage]=useState("");
  useEffect(()=>{setToken(sessionStorage.getItem("ppm_access_token"));if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});},[]);
- useEffect(()=>{loadRestaurants()},[]);\n useEffect(()=>{const slug=new URLSearchParams(location.search).get("restaurant");if(slug)openRestaurant(slug)},[token]);
+ useEffect(()=>{loadRestaurants()},[]);
+ useEffect(()=>{const slug=new URLSearchParams(location.search).get("restaurant");if(slug)openRestaurant(slug)},[token]);
  async function loadRestaurants(){try{const d:any=await api("/restaurants?lat=18.783&lng=83.426&search="+encodeURIComponent(search));setRestaurants(d.items??[])}catch(e:any){setMessage(e.message)}}
  async function openRestaurant(slug:string){try{const r:any=await api("/restaurants/"+slug);setSelected(r);sessionStorage.setItem("ppm_restaurant_id",r.id);if(token){const c=await api("/carts/"+r.id);setCart(c)}}catch(e:any){setMessage(e.message)}}
- async function add(item:any){if(!token){location.href="/account";return}try{const c:any=await api("/carts/"+selected!.id+"/items",{method:"PUT",body:JSON.stringify({menuItemId:item.id,quantity:1,addonIds:[]})});setCart(c);setMessage(item.name+" added")}catch(e:any){setMessage(e.message)}}\n async function saveRestaurant(){if(!token){location.href="/account";return}try{await api("/favorites/restaurants/"+selected!.id,{method:"POST"});setMessage(selected!.name+" saved to Favorites")}catch(e:any){setMessage(e.message)}}\n async function saveDish(item:any){if(!token){location.href="/account";return}try{await api("/favorites/dishes/"+item.id,{method:"POST"});setMessage(item.name+" saved to Favorites")}catch(e:any){setMessage(e.message)}}
+ async function add(item:any){if(!token){location.href="/account";return}try{const c:any=await api("/carts/"+selected!.id+"/items",{method:"PUT",body:JSON.stringify({menuItemId:item.id,quantity:1,addonIds:[]})});setCart(c);setMessage(item.name+" added")}catch(e:any){setMessage(e.message)}}
+ async function saveRestaurant(){if(!token){location.href="/account";return}try{await api("/favorites/restaurants/"+selected!.id,{method:"POST"});setMessage(selected!.name+" saved to Favorites")}catch(e:any){setMessage(e.message)}}
+ async function saveDish(item:any){if(!token){location.href="/account";return}try{await api("/favorites/dishes/"+item.id,{method:"POST"});setMessage(item.name+" saved to Favorites")}catch(e:any){setMessage(e.message)}}
  const cartTotal=useMemo(()=>cart?.items?.reduce((s:number,i:any)=>s+(i.menuItem.discountedPricePaise??i.menuItem.pricePaise)*i.quantity,0)??0,[cart]);
  function signOut(){clearSession();setToken(null);setCart(null)}
 
