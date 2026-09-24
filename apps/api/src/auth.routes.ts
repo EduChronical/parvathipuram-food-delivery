@@ -3,6 +3,7 @@ import {z} from "zod";
 import type {FastifyInstance} from "fastify";
 import {db,RoleCode} from "@ppm/database";
 import {issueTokens,requireAuth,sha256} from "./security.js";
+import {smsProvider,emailProvider} from "./providers.js";
 
 const loginSchema=z.object({identifier:z.string().min(3),password:z.string().min(8)});
 const otpRequestSchema=z.object({destination:z.string().min(8),purpose:z.enum(["SIGNUP","LOGIN","RESET_PASSWORD","CHANGE_PHONE"])});
@@ -22,6 +23,9 @@ export async function authRoutes(app:FastifyInstance){
     const body=otpRequestSchema.parse(req.body);
     const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
     await db.otpChallenge.create({data:{destination:body.destination,purpose:body.purpose,codeHash:sha256(code),expiresAt:new Date(Date.now()+5*60*1000)}});
+    const text="Your PPM Bites verification code is "+code+". It expires in 5 minutes.";
+    if(body.destination.includes("@")) await emailProvider().send(body.destination,"PPM Bites verification code",text);
+    else await smsProvider().send(body.destination,text);
     return {ok:true,expiresInSeconds:300,developmentCode:process.env.NODE_ENV==="production"?undefined:code};
   });
 
