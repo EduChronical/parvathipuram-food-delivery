@@ -60,3 +60,24 @@ export async function api<T=any>(path:string,init:RequestInit={}):Promise<T>{
   if(!res.ok) throw new Error(data.message??"Request failed");
   return data;
 }
+
+export async function apiBlob(path:string,init:RequestInit={}):Promise<Blob>{
+  const token=typeof window!=="undefined"?sessionStorage.getItem("ppm_access_token"):null;
+  let res=await rawApi(path,init,token);
+  if(res.status===401&&typeof window!=="undefined"&&!path.startsWith("/auth/")){
+    const refreshToken=sessionStorage.getItem("ppm_refresh_token");
+    if(refreshToken){
+      const rr=await rawApi("/auth/refresh",{method:"POST",body:JSON.stringify({refreshToken})},null);
+      if(rr.ok){
+        const next=await rr.json();
+        saveSession(next);
+        res=await rawApi(path,init,next.accessToken);
+      }else clearSession();
+    }
+  }
+  if(!res.ok){
+    const data=await res.json().catch(()=>({}));
+    throw new Error(data.message??"Request failed");
+  }
+  return res.blob();
+}
