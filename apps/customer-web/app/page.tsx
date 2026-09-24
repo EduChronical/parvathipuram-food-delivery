@@ -12,7 +12,7 @@ export default function CustomerApp(){
  useEffect(()=>{loadRestaurants()},[]);
  async function loadRestaurants(){try{const d:any=await api("/restaurants?lat=18.783&lng=83.426&search="+encodeURIComponent(search));setRestaurants(d.items??[])}catch(e:any){setMessage(e.message)}}
  async function login(e:React.FormEvent){e.preventDefault();try{const d:any=await api("/auth/login",{method:"POST",body:JSON.stringify({identifier,password})});sessionStorage.setItem("ppm_access_token",d.accessToken);setToken(d.accessToken);setMessage("Signed in")}catch(e:any){setMessage(e.message)}}
- async function openRestaurant(slug:string){try{const r:any=await api("/restaurants/"+slug);setSelected(r);if(token){const c=await api("/carts/"+r.id);setCart(c)}}catch(e:any){setMessage(e.message)}}
+ async function openRestaurant(slug:string){try{const r:any=await api("/restaurants/"+slug);setSelected(r);sessionStorage.setItem("ppm_restaurant_id",r.id);if(token){const c=await api("/carts/"+r.id);setCart(c)}}catch(e:any){setMessage(e.message)}}
  async function add(item:any){if(!token){setMessage("Sign in to add items");return}try{const c:any=await api("/carts/"+selected!.id+"/items",{method:"PUT",body:JSON.stringify({menuItemId:item.id,quantity:1,addonIds:[]})});setCart(c);setMessage(item.name+" added")}catch(e:any){setMessage(e.message)}}
  const cartTotal=useMemo(()=>cart?.items?.reduce((s:number,i:any)=>s+(i.menuItem.discountedPricePaise??i.menuItem.pricePaise)*i.quantity,0)??0,[cart]);
 
