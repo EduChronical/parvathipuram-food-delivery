@@ -39,7 +39,7 @@ app.setErrorHandler((err,req,reply)=>{
   if(err instanceof ZodError) return reply.code(400).send({code:"VALIDATION_ERROR",message:"Request validation failed",details:err.issues.map(i=>({path:i.path.join("."),message:i.message})),requestId:req.id});
   const status=(err as any).statusCode??500;
   req.log.error({err,requestId:req.id});
-  return reply.code(status).send({code:(err as any).code??"INTERNAL_ERROR",message:status>=500?"Internal server error":err.message,requestId:req.id});
+  return reply.code(status).send({code:(err as any).code??"INTERNAL_ERROR",message:status>=500?"Internal server error":(err instanceof Error?err.message:"Request failed"),requestId:req.id});
 });
 
 app.get("/health",async()=>{
