@@ -13,6 +13,13 @@ async function restaurantIdsFor(userId:string){
   return [...new Set([...owners,...staff].map(x=>x.restaurantId))];
 }
 
+async function approvedDeliveryPartner(userId:string){
+  const partner=await db.deliveryPartner.findUnique({where:{userId}});
+  if(!partner) throw Object.assign(new Error("Delivery partner profile not found"),{statusCode:404,code:"DELIVERY_PROFILE_NOT_FOUND"});
+  if(partner.status!==DocumentStatus.APPROVED) throw Object.assign(new Error("Delivery partner approval is required"),{statusCode:403,code:"DELIVERY_PARTNER_NOT_APPROVED"});
+  return partner;
+}
+
 export async function partnerRoutes(app:FastifyInstance){
   app.get("/partner/restaurants",async(req)=>{
     const u=requireRole(req,["RESTAURANT_OWNER","RESTAURANT_MANAGER","RESTAURANT_STAFF","SUPER_ADMIN"]);
@@ -47,25 +54,26 @@ export async function partnerRoutes(app:FastifyInstance){
   app.post("/delivery/online",async(req)=>{
     const u=requireRole(req,["DELIVERY_PARTNER"]);
     const b=z.object({online:z.boolean()}).parse(req.body);
+    await approvedDeliveryPartner(u.id);
     return db.deliveryPartner.update({where:{userId:u.id},data:{online:b.online}});
   });
 
   app.post("/delivery/location",async(req)=>{
     const u=requireRole(req,["DELIVERY_PARTNER"]);
     const b=z.object({latitude:z.number(),longitude:z.number(),accuracyM:z.number().optional()}).parse(req.body);
-    const partner=await db.deliveryPartner.findUniqueOrThrow({where:{userId:u.id}});
+    const partner=await approvedDeliveryPartner(u.id);
     return db.deliveryLocation.create({data:{deliveryPartnerId:partner.id,...b}});
   });
 
   app.get("/delivery/offers",async(req)=>{
     const u=requireRole(req,["DELIVERY_PARTNER"]);
-    const partner=await db.deliveryPartner.findUniqueOrThrow({where:{userId:u.id}});
+    const partner=await approvedDeliveryPartner(u.id);
     return db.deliveryAssignment.findMany({where:{deliveryPartnerId:partner.id,status:AssignmentStatus.OFFERED},include:{order:{include:{restaurant:true}}},orderBy:{offeredAt:"asc"}});
   });
 
   app.get("/delivery/current",async(req)=>{
     const u=requireRole(req,["DELIVERY_PARTNER"]);
-    const partner=await db.deliveryPartner.findUniqueOrThrow({where:{userId:u.id}});
+    const partner=await approvedDeliveryPartner(u.id);
     return db.deliveryAssignment.findMany({
       where:{deliveryPartnerId:partner.id,status:{in:[AssignmentStatus.ACCEPTED,AssignmentStatus.PICKED_UP]}},
       include:{order:{include:{restaurant:true}}},
@@ -77,7 +85,7 @@ export async function partnerRoutes(app:FastifyInstance){
     const u=requireRole(req,["DELIVERY_PARTNER"]);
     const {id}=z.object({id:z.string().uuid()}).parse(req.params);
     const b=z.object({accept:z.boolean()}).parse(req.body);
-    const partner=await db.deliveryPartner.findUniqueOrThrow({where:{userId:u.id}});
+    const partner=await approvedDeliveryPartner(u.id);
     const assignment=await db.deliveryAssignment.findFirst({where:{id,deliveryPartnerId:partner.id,status:AssignmentStatus.OFFERED}});
     if(!assignment) return reply.code(409).send({code:"OFFER_UNAVAILABLE",message:"Offer is no longer available",requestId:req.id});
     if(!b.accept){
