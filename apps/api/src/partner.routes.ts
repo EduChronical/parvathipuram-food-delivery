@@ -113,6 +113,41 @@ export async function partnerRoutes(app:FastifyInstance){
     }
   });
 
+  app.get("/delivery/earnings",async(req)=>{
+    const u=requireRole(req,["DELIVERY_PARTNER"]);
+    const q=z.object({days:z.coerce.number().int().min(1).max(90).default(7)}).parse(req.query);
+    const partner=await approvedDeliveryPartner(u.id);
+    const since=new Date(Date.now()-q.days*24*60*60*1000);
+    const entries=await db.deliveryEarning.findMany({where:{deliveryPartnerId:partner.id,createdAt:{gte:since}},orderBy:{createdAt:"desc"},take:500});
+    const totalPaise=entries.reduce((sum,e)=>sum+e.totalPaise,0);
+    const todayStart=new Date();todayStart.setHours(0,0,0,0);
+    const todayPaise=entries.filter(e=>e.createdAt>=todayStart).reduce((sum,e)=>sum+e.totalPaise,0);
+    return {days:q.days,totalPaise,todayPaise,entries};
+  });
+
+  app.get("/partner/settlements",async(req)=>{
+    const u=requireRole(req,["RESTAURANT_OWNER","RESTAURANT_MANAGER","SUPER_ADMIN","FINANCE_ADMIN"]);
+    const ids=u.roles.some(r=>["SUPER_ADMIN","FINANCE_ADMIN"].includes(r))?undefined:await restaurantIdsFor(u.id);
+    const entries=await db.restaurantSettlement.findMany({where:{...(ids?{restaurantId:{in:ids}}:{})},include:{restaurant:true,order:true},orderBy:{createdAt:"desc"},take:500});
+    return {totalPayoutPaise:entries.reduce((sum,e)=>sum+e.payoutPaise,0),entries};
+  });
+
+  app.get("/partner/reviews",async(req)=>{
+    const u=requireRole(req,["RESTAURANT_OWNER","RESTAURANT_MANAGER","RESTAURANT_STAFF","SUPER_ADMIN"]);
+    const ids=u.roles.includes("SUPER_ADMIN")?undefined:await restaurantIdsFor(u.id);
+    return db.review.findMany({where:{...(ids?{restaurantId:{in:ids}}:{})},include:{user:{include:{profile:true}},restaurant:true},orderBy:{createdAt:"desc"},take:100});
+  });
+
+  app.post("/partner/reviews/:id/reply",async(req,reply)=>{
+    const u=requireRole(req,["RESTAURANT_OWNER","RESTAURANT_MANAGER","SUPER_ADMIN"]);
+    const {id}=z.object({id:z.string().uuid()}).parse(req.params);
+    const b=z.object({reply:z.string().min(1).max(1500)}).parse(req.body);
+    const review=await db.review.findUnique({where:{id}});
+    if(!review) return reply.code(404).send({code:"REVIEW_NOT_FOUND",message:"Review not found",requestId:req.id});
+    if(!u.roles.includes("SUPER_ADMIN")&&!(await restaurantIdsFor(u.id)).includes(review.restaurantId)) return reply.code(403).send({code:"FORBIDDEN",message:"Forbidden",requestId:req.id});
+    return db.review.update({where:{id},data:{restaurantReply:b.reply}});
+  });
+
   app.post("/delivery/dispatch/:orderId",async(req,reply)=>{
     requireRole(req,["SUPER_ADMIN","CITY_MANAGER"]);
     const {orderId}=z.object({orderId:z.string().uuid()}).parse(req.params);
