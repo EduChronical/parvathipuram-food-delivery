@@ -25,7 +25,8 @@
     "bullmq": "^5.40.3",
     "ioredis": "^5.4.2",
     "fastify-raw-body": "^5.0.0",
-    "@fastify/static": "^10.1.4"
+    "@fastify/static": "^10.1.4",
+    "@fastify/multipart": "^9.1.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
