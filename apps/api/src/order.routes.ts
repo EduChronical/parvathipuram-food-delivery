@@ -186,7 +186,7 @@ export async function orderRoutes(app:FastifyInstance){
     });
     await publishOrder(id,{type:"ORDER_STATUS",orderId:id,status:b.to});
 
-    if([OrderStatus.RESTAURANT_CONFIRMED,OrderStatus.PREPARING,OrderStatus.READY_FOR_PICKUP].includes(b.to)){
+    if(b.to===OrderStatus.RESTAURANT_CONFIRMED||b.to===OrderStatus.PREPARING||b.to===OrderStatus.READY_FOR_PICKUP){
       const already=await db.deliveryAssignment.count({where:{orderId:id,status:{in:["OFFERED","ACCEPTED","PICKED_UP"]}}});
       if(!already){
         const full=await db.order.findUnique({where:{id},include:{restaurant:true}});
