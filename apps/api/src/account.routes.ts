@@ -3,6 +3,7 @@ import {z} from "zod";
 import type {FastifyInstance} from "fastify";
 import {db} from "@ppm/database";
 import {requireAuth,sha256} from "./security.js";
+import {smsProvider,emailProvider} from "./providers.js";
 
 export async function accountRoutes(app:FastifyInstance){
   app.post("/auth/forgot-password",{config:{rateLimit:{max:5,timeWindow:"15 minutes"}}},async(req)=>{
@@ -11,6 +12,9 @@ export async function accountRoutes(app:FastifyInstance){
     if(user){
       const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
       await db.otpChallenge.create({data:{userId:user.id,destination:b.identifier,purpose:"RESET_PASSWORD",codeHash:sha256(code),expiresAt:new Date(Date.now()+5*60*1000)}});
+      const text="Your PPM Bites password reset code is "+code+". It expires in 5 minutes.";
+      if(b.identifier.includes("@")) await emailProvider().send(b.identifier,"PPM Bites password reset",text);
+      else await smsProvider().send(b.identifier,text);
       if(process.env.NODE_ENV!=="production") return {ok:true,developmentCode:code};
     }
     return {ok:true};
