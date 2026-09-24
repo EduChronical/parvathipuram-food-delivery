@@ -14,6 +14,12 @@ export async function paymentRoutes(app:FastifyInstance){
     const payment=order.payments[0];
     if(!payment) return reply.code(409).send({code:"PAYMENT_NOT_FOUND",message:"Payment record missing",requestId:req.id});
     if(payment.status===PaymentStatus.CAPTURED) return {alreadyPaid:true};
+    if(payment.providerOrderId&&payment.status===PaymentStatus.PENDING){
+      if(process.env.PAYMENT_PROVIDER==="razorpay"){
+        return {keyId:process.env.PAYMENT_API_KEY,orderId:payment.providerOrderId,amount:order.totalPaise,currency:"INR"};
+      }
+      return {mode:"dev",orderId:payment.providerOrderId};
+    }
     const provider=paymentProvider();
     const created=await provider.createPayment({orderId,amountPaise:order.totalPaise,currency:"INR"});
     await db.payment.update({where:{id:payment.id},data:{providerOrderId:created.providerOrderId,status:PaymentStatus.PENDING}});
