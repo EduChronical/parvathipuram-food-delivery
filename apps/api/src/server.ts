@@ -144,13 +144,21 @@ await app.register(integrationRoutes);
 await app.register(pushRoutes);
 await app.register(paymentRoutes);
 
-const customerOut=path.join(process.cwd(),"apps/customer-web/out");
-if(existsSync(customerOut)){
+const customerOutCandidates=[
+  path.resolve(process.cwd(),"../customer-web/out"),
+  path.resolve(process.cwd(),"apps/customer-web/out"),
+  path.resolve(process.cwd(),"../../apps/customer-web/out")
+];
+const customerOut=customerOutCandidates.find(candidate=>existsSync(candidate));
+if(customerOut){
+  app.log.info({cwd:process.cwd(),customerOut},"Serving customer web export");
   await app.register(fastifyStatic,{
     root:customerOut,
     prefix:"/",
     index:["index.html"]
   });
+}else{
+  app.log.warn({cwd:process.cwd(),customerOutCandidates},"Customer web export not found");
 }
 
 await app.listen({host:"0.0.0.0",port:env.PORT});
