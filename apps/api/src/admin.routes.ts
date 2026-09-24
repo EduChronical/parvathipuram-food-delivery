@@ -3,6 +3,7 @@ import type {FastifyInstance} from "fastify";
 import {db,RestaurantStatus,DocumentStatus,PaymentStatus} from "@ppm/database";
 import {requireRole} from "./security.js";
 import {paymentProvider} from "./providers.js";
+import {notifyUser} from "./notifications.js";
 
 export async function adminRoutes(app:FastifyInstance){
   app.get("/admin/kpis",async(req)=>{
@@ -35,6 +36,8 @@ export async function adminRoutes(app:FastifyInstance){
     const old=await db.restaurant.findUniqueOrThrow({where:{id}});
     const updated=await db.restaurant.update({where:{id},data:{status:b.status}});
     await db.auditLog.create({data:{actorUserId:u.id,action:"RESTAURANT_STATUS_CHANGED",resourceType:"restaurant",resourceId:id,oldValues:{status:old.status},newValues:{status:b.status,note:b.note},ipAddress:req.ip,userAgent:req.headers["user-agent"],requestId:req.id}});
+    const owners=await db.restaurantOwner.findMany({where:{restaurantId:id},select:{userId:true}});
+    await Promise.all(owners.map(o=>notifyUser(o.userId,"RESTAURANT_APPLICATION","Restaurant application "+b.status.toLowerCase().replaceAll("_"," "),"Your restaurant "+updated.name+" is now "+b.status.toLowerCase().replaceAll("_"," ")+".",{restaurantId:id,status:b.status})));
     return updated;
   });
 
@@ -54,6 +57,7 @@ export async function adminRoutes(app:FastifyInstance){
     const old=await db.deliveryPartner.findUniqueOrThrow({where:{id}});
     const updated=await db.deliveryPartner.update({where:{id},data:{status:b.status}});
     await db.auditLog.create({data:{actorUserId:u.id,action:"DELIVERY_PARTNER_STATUS_CHANGED",resourceType:"delivery_partner",resourceId:id,oldValues:{status:old.status},newValues:{status:b.status},requestId:req.id}});
+    await notifyUser(updated.userId,"DELIVERY_APPLICATION","Delivery application "+b.status.toLowerCase(),"Your delivery-partner application is now "+b.status.toLowerCase()+".",{deliveryPartnerId:id,status:b.status});
     return updated;
   });
 
@@ -82,6 +86,7 @@ export async function adminRoutes(app:FastifyInstance){
         await tx.auditLog.create({data:{actorUserId:u.id,action:"REFUND_COMPLETED",resourceType:"refund",resourceId:refund.id,newValues:{providerRefundId:providerResult.providerRefundId,amountPaise:b.amountPaise},requestId:req.id}});
         return r;
       });
+      await notifyUser(order.userId,"REFUND_COMPLETED","Refund completed","Your refund of ₹"+(b.amountPaise/100).toFixed(2)+" has been completed.",{orderId:order.id,refundId:updated.id,amountPaise:b.amountPaise});
       return reply.code(201).send(updated);
     }catch(err){
       req.log.error({err,refundId:refund.id},"Refund provider call failed");
