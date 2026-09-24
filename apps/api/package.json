@@ -23,7 +23,8 @@
     "zod": "^3.24.1",
     "@aws-sdk/client-s3": "^3.744.0",
     "bullmq": "^5.40.3",
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.4.2",
+    "fastify-raw-body": "^5.0.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
