@@ -1,0 +1,1 @@
+export default {transpilePackages:["@ppm/ui"],output:"standalone"};
