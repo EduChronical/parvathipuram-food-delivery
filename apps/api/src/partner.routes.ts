@@ -63,6 +63,16 @@ export async function partnerRoutes(app:FastifyInstance){
     return db.deliveryAssignment.findMany({where:{deliveryPartnerId:partner.id,status:AssignmentStatus.OFFERED},include:{order:{include:{restaurant:true}}},orderBy:{offeredAt:"asc"}});
   });
 
+  app.get("/delivery/current",async(req)=>{
+    const u=requireRole(req,["DELIVERY_PARTNER"]);
+    const partner=await db.deliveryPartner.findUniqueOrThrow({where:{userId:u.id}});
+    return db.deliveryAssignment.findMany({
+      where:{deliveryPartnerId:partner.id,status:{in:[AssignmentStatus.ACCEPTED,AssignmentStatus.PICKED_UP]}},
+      include:{order:{include:{restaurant:true}}},
+      orderBy:{respondedAt:"desc"}
+    });
+  });
+
   app.post("/delivery/assignments/:id/respond",async(req,reply)=>{
     const u=requireRole(req,["DELIVERY_PARTNER"]);
     const {id}=z.object({id:z.string().uuid()}).parse(req.params);
