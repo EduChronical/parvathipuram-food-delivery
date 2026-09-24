@@ -25,7 +25,8 @@ class RazorpayProvider implements PaymentProvider{
   verifyWebhook(raw:string,signature:string|undefined){
     if(!signature||!process.env.PAYMENT_WEBHOOK_SECRET) return false;
     const digest=crypto.createHmac("sha256",process.env.PAYMENT_WEBHOOK_SECRET).update(raw).digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(digest),Buffer.from(signature));
+    const a=Buffer.from(digest),b=Buffer.from(signature);
+    return a.length===b.length&&crypto.timingSafeEqual(a,b);
   }
 }
 
