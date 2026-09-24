@@ -5,6 +5,7 @@ import {db,OrderStatus,PaymentStatus,CouponType} from "@ppm/database";
 import {assertTransition,calculatePricing,couponDiscount,deliveryFeePaise,etaMinutes,haversineKm} from "@ppm/core";
 import {requireAuth,requireRole} from "./security.js";
 import {publishOrder} from "./realtime.js";
+import {notifyUser,notifyRestaurantUsers,notifyDeliveryPartners,orderStatusCopy} from "./notifications.js";
 
 const checkoutSchema=z.object({
   restaurantId:z.string().uuid(),addressId:z.string().uuid(),paymentMethod:z.enum(["UPI","CARD","NETBANKING","WALLET","COD"]),
@@ -93,6 +94,13 @@ export async function orderRoutes(app:FastifyInstance){
       },{isolationLevel:"Serializable"});
 
       await db.idempotencyKey.create({data:{userId:u.id,scope:"checkout",key:idem,requestHash:hash,responseStatus:201,responseBody:result,expiresAt:new Date(Date.now()+24*60*60*1000)}});
+      if(result.order.status===OrderStatus.PLACED){
+        const copy=orderStatusCopy("PLACED");
+        await Promise.all([
+          notifyUser(u.id,"ORDER_PLACED",copy.title,copy.body,{orderId:result.order.id,orderNumber:result.order.orderNumber}),
+          notifyRestaurantUsers(result.order.restaurantId,"NEW_ORDER","New order received","A new PPM Bites order is ready for acceptance.",{orderId:result.order.id,orderNumber:result.order.orderNumber})
+        ]);
+      }
       return reply.code(201).send(result);
     }catch(e:any){
       const status=e.statusCode??500;
@@ -189,6 +197,8 @@ export async function orderRoutes(app:FastifyInstance){
       }
     });
     await publishOrder(id,{type:"ORDER_STATUS",orderId:id,status:b.to});
+    const copy=orderStatusCopy(b.to);
+    await notifyUser(order.userId,"ORDER_STATUS",copy.title,copy.body,{orderId:id,status:b.to});
 
     if(b.to===OrderStatus.RESTAURANT_CONFIRMED||b.to===OrderStatus.PREPARING||b.to===OrderStatus.READY_FOR_PICKUP){
       const already=await db.deliveryAssignment.count({where:{orderId:id,status:{in:["OFFERED","ACCEPTED","PICKED_UP"]}}});
@@ -201,7 +211,10 @@ export async function orderRoutes(app:FastifyInstance){
         const ranked=riders
           .map(r=>({r,d:r.locations[0]?haversineKm(Number(full!.restaurant.latitude),Number(full!.restaurant.longitude),Number(r.locations[0].latitude),Number(r.locations[0].longitude)):999}))
           .filter(x=>x.d<=8).sort((a,b)=>a.d-b.d).slice(0,5);
-        if(ranked.length) await db.deliveryAssignment.createMany({data:ranked.map(x=>({orderId:id,deliveryPartnerId:x.r.id,status:"OFFERED"}))});
+        if(ranked.length){
+          await db.deliveryAssignment.createMany({data:ranked.map(x=>({orderId:id,deliveryPartnerId:x.r.id,status:"OFFERED"}))});
+          await notifyDeliveryPartners(ranked.map(x=>x.r.id),"DELIVERY_OFFER","New delivery request","A nearby order is available for delivery.",{orderId:id});
+        }
       }
     }
     return {ok:true,status:b.to};
