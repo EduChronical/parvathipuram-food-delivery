@@ -1,7 +1,8 @@
 import {z} from "zod";
 import type {FastifyInstance} from "fastify";
 import {db,RestaurantStatus,DocumentStatus,PaymentStatus} from "@ppm/database";
-import {requireRole} from "./security.js";\nimport {paymentProvider} from "./providers.js";
+import {requireRole} from "./security.js";
+import {paymentProvider} from "./providers.js";
 
 export async function adminRoutes(app:FastifyInstance){
   app.get("/admin/kpis",async(req)=>{
