@@ -4,7 +4,7 @@ import helmet from "@fastify/helmet";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import rawBody from "fastify-raw-body";
-import IORedis from "ioredis";
+import {Redis} from "ioredis";
 import {z,ZodError} from "zod";
 import {db} from "@ppm/database";
 import {authRoutes} from "./auth.routes.js";
@@ -46,7 +46,7 @@ app.get("/health",async()=>{
   await db.$queryRawUnsafe("SELECT 1");
   let redis="disabled";
   if(env.REDIS_URL){
-    const r=new IORedis(env.REDIS_URL,{lazyConnect:true,maxRetriesPerRequest:1});
+    const r=new Redis(env.REDIS_URL,{lazyConnect:true,maxRetriesPerRequest:1});
     try{await r.connect();redis=await r.ping()}finally{r.disconnect()}
   }
   return {ok:true,database:{ok:true,latencyMs:Date.now()-dbStart},redis,node:process.version,time:new Date().toISOString()};
@@ -63,7 +63,7 @@ app.get("/orders/:id/events",async(req,reply)=>{
   const order=await db.order.findUnique({where:{id}});
   if(!order||order.userId!==u.id) return reply.code(404).send({code:"ORDER_NOT_FOUND",message:"Order not found",requestId:req.id});
   if(!env.REDIS_URL) return reply.code(503).send({code:"REALTIME_UNAVAILABLE",message:"Realtime service unavailable",requestId:req.id});
-  const sub=new IORedis(env.REDIS_URL);
+  const sub=new Redis(env.REDIS_URL);
   reply.hijack();
   reply.raw.writeHead(200,{"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","X-Accel-Buffering":"no"});
   reply.raw.write("event: connected\ndata: {}\n\n");
