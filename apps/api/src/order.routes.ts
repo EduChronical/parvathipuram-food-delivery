@@ -6,6 +6,7 @@ import {assertTransition,calculatePricing,couponDiscount,deliveryFeePaise,etaMin
 import {requireAuth,requireRole} from "./security.js";
 import {publishOrder} from "./realtime.js";
 import {notifyUser,notifyRestaurantUsers,notifyDeliveryPartners,orderStatusCopy} from "./notifications.js";
+import {paymentReady} from "./integrations.js";
 
 const checkoutSchema=z.object({
   restaurantId:z.string().uuid(),addressId:z.string().uuid(),paymentMethod:z.enum(["UPI","CARD","NETBANKING","WALLET","COD"]),
@@ -18,7 +19,7 @@ export async function orderRoutes(app:FastifyInstance){
     const idem=String(req.headers["idempotency-key"]??"");
     if(idem.length<8) return reply.code(400).send({code:"IDEMPOTENCY_KEY_REQUIRED",message:"Idempotency-Key header required",requestId:req.id});
     const body=checkoutSchema.parse(req.body);
-    const onlinePaymentReady=process.env.PAYMENT_PROVIDER==="razorpay"&&!!process.env.PAYMENT_API_KEY&&!!process.env.PAYMENT_API_SECRET;
+    const onlinePaymentReady=paymentReady();
     if(process.env.NODE_ENV==="production"&&body.paymentMethod!=="COD"&&!onlinePaymentReady){
       return reply.code(503).send({code:"ONLINE_PAYMENTS_UNAVAILABLE",message:"Online payments are temporarily unavailable. Please use cash on delivery.",requestId:req.id});
     }
