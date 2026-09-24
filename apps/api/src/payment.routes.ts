@@ -37,7 +37,10 @@ export async function paymentRoutes(app:FastifyInstance){
     const failed=body.event==="payment.failed"||body.status==="failed"||body.status==="FAILED";
     const payment=providerOrderId?await db.payment.findFirst({where:{providerOrderId}}):null;
     if(!payment){
-      await db.paymentAttempt.create({data:{paymentId:(await db.payment.findFirstOrThrow()).id,idempotencyKey:"webhook:"+eventId,status:"UNMATCHED",providerResponse:body}});
+      await db.auditLog.create({data:{
+        action:"PAYMENT_WEBHOOK_UNMATCHED",resourceType:"payment_webhook",resourceId:eventId,
+        newValues:{providerOrderId,providerPaymentId,event:body.event??body.status},requestId:req.id
+      }});
       return reply.code(202).send({ok:true,matched:false});
     }
     await db.$transaction(async tx=>{
