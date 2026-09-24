@@ -18,7 +18,8 @@ import {partnerRoutes} from "./partner.routes.js";
 import {adminRoutes} from "./admin.routes.js";
 import {supportRoutes} from "./support.routes.js";
 import {paymentRoutes} from "./payment.routes.js";
-import {accountRoutes} from "./account.routes.js";\nimport {engagementRoutes} from "./engagement.routes.js";
+import {accountRoutes} from "./account.routes.js";
+import {engagementRoutes} from "./engagement.routes.js";
 import {registerSecurity,requireAuth} from "./security.js";
 import {subscribeLocalOrder} from "./realtime.js";
 
@@ -100,7 +101,8 @@ await app.register(cartRoutes);
 await app.register(orderRoutes);
 await app.register(partnerRoutes);
 await app.register(adminRoutes);
-await app.register(supportRoutes);\nawait app.register(engagementRoutes);
+await app.register(supportRoutes);
+await app.register(engagementRoutes);
 await app.register(paymentRoutes);
 
 const customerOut=path.join(process.cwd(),"apps/customer-web/out");
