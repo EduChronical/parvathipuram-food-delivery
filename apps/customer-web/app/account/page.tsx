@@ -17,7 +17,7 @@ export default function AccountPage(){
   const [passwordForm,setPasswordForm]=useState({currentPassword:"",newPassword:""});
   const [pushEnabled,setPushEnabled]=useState(false);
 
-  useEffect(()=>{api<Caps>("/platform/capabilities").then(setCaps).catch(()=>{});setPushEnabled(!!localStorage.getItem("ppm_fcm_token"));loadAccount()},[]);
+  useEffect(()=>{api<Caps>("/platform/capabilities").then(setCaps).catch(()=>{});setPushEnabled(!!localStorage.getItem("ppm_fcm_target"));loadAccount()},[]);
   async function loadAccount(){
     if(typeof window==="undefined"||!sessionStorage.getItem("ppm_access_token"))return;
     try{
