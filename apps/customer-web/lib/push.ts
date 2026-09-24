@@ -30,17 +30,19 @@ async function registerTarget(serviceWorkerRegistration:ServiceWorkerRegistratio
   const messaging=getMessaging(firebaseApp());
   return new Promise<string>((resolve,reject)=>{
     let settled=false;
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    let stopRegistered=()=>{};
     const finish=(fn:()=>void)=>{
       if(settled)return;
       settled=true;
-      clearTimeout(timer);
+      if(timer)clearTimeout(timer);
       stopRegistered();
       fn();
     };
-    const stopRegistered=onRegistered(messaging,target=>{
+    stopRegistered=onRegistered(messaging,target=>{
       finish(()=>resolve(target));
     });
-    const timer=setTimeout(()=>finish(()=>reject(new Error("Timed out waiting for Firebase push registration."))),15000);
+    timer=setTimeout(()=>finish(()=>reject(new Error("Timed out waiting for Firebase push registration."))),15000);
     register(messaging,{
       vapidKey:process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!,
       serviceWorkerRegistration
