@@ -4,6 +4,7 @@ import type {FastifyInstance} from "fastify";
 import {db,RoleCode} from "@ppm/database";
 import {issueTokens,requireAuth,otpHash,splitRefreshToken} from "./security.js";
 import {smsProvider,emailProvider} from "./providers.js";
+import {emailReady as emailConfigured,smsReady as smsConfigured} from "./integrations.js";
 
 const loginSchema=z.object({identifier:z.string().min(3),password:z.string().min(8)});
 const otpRequestSchema=z.object({destination:z.string().min(8),purpose:z.enum(["SIGNUP","LOGIN","RESET_PASSWORD","CHANGE_PHONE"])});
@@ -17,8 +18,8 @@ export async function authRoutes(app:FastifyInstance){
     if(exists) return reply.code(409).send({code:"ACCOUNT_EXISTS",message:"An account already exists for this email",requestId:req.id});
     const role=await db.role.findUniqueOrThrow({where:{code:RoleCode.CUSTOMER}});
     const user=await db.user.create({data:{email,passwordHash:await argon2.hash(body.password),profile:{create:{name:body.name}},wallet:{create:{}},roles:{create:{roleId:role.id}}}});
-    const emailReady=process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM;
-    if(!emailReady) return {...await issueTokens(app,user.id,{ip:req.ip,ua:req.headers["user-agent"]}),verificationRequired:false,verificationDeferred:true};
+    const emailIsReady=emailConfigured();
+    if(!emailIsReady) return {...await issueTokens(app,user.id,{ip:req.ip,ua:req.headers["user-agent"]}),verificationRequired:false,verificationDeferred:true};
     const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
     await db.otpChallenge.create({data:{userId:user.id,destination:user.email!,purpose:"SIGNUP",codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
     try{
@@ -40,7 +41,7 @@ export async function authRoutes(app:FastifyInstance){
   app.post("/auth/otp/request",{config:{rateLimit:{max:5,timeWindow:"10 minutes"}}},async(req,reply)=>{
     const body=otpRequestSchema.parse(req.body);
     const isEmail=body.destination.includes("@");
-    const available=isEmail?process.env.EMAIL_PROVIDER==="resend"&&!!process.env.EMAIL_API_KEY&&!!process.env.EMAIL_FROM:process.env.SMS_PROVIDER==="twilio"&&!!process.env.SMS_API_KEY&&!!process.env.SMS_API_SECRET&&!!process.env.SMS_FROM;
+    const available=isEmail?emailConfigured():smsConfigured();
     if(process.env.NODE_ENV==="production"&&!available) return reply.code(503).send({code:"OTP_CHANNEL_UNAVAILABLE",message:"OTP delivery is not configured for this channel",requestId:req.id});
     const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
     await db.otpChallenge.create({data:{destination:body.destination,purpose:body.purpose,codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
