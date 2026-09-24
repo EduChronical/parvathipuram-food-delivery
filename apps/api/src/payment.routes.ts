@@ -4,6 +4,7 @@ import {db,PaymentStatus,OrderStatus} from "@ppm/database";
 import {paymentProvider} from "./providers.js";
 import {requireAuth} from "./security.js";
 import {publishOrder} from "./realtime.js";
+import {notifyUser,notifyRestaurantUsers,orderStatusCopy} from "./notifications.js";
 
 export async function paymentRoutes(app:FastifyInstance){
   app.post("/payments/:orderId/create",async(req,reply)=>{
@@ -64,6 +65,16 @@ export async function paymentRoutes(app:FastifyInstance){
       }
     });
     await publishOrder(payment.orderId,{type:captured?"PAYMENT_CAPTURED":"PAYMENT_UPDATED",orderId:payment.orderId});
+    if(captured){
+      const order=await db.order.findUnique({where:{id:payment.orderId}});
+      if(order){
+        const copy=orderStatusCopy("PLACED");
+        await Promise.all([
+          notifyUser(order.userId,"ORDER_PLACED",copy.title,copy.body,{orderId:order.id,orderNumber:order.orderNumber}),
+          notifyRestaurantUsers(order.restaurantId,"NEW_ORDER","New paid order received","A paid PPM Bites order is ready for acceptance.",{orderId:order.id,orderNumber:order.orderNumber})
+        ]);
+      }
+    }
     return {ok:true};
   });
 }
