@@ -1,4 +1,5 @@
 import argon2 from "argon2";
+import {randomInt} from "node:crypto";
 import {z} from "zod";
 import type {FastifyInstance} from "fastify";
 import {db,RoleCode} from "@ppm/database";
@@ -9,6 +10,7 @@ import {emailReady as emailConfigured,smsReady as smsConfigured} from "./integra
 const loginSchema=z.object({identifier:z.string().min(3),password:z.string().min(8)});
 const otpRequestSchema=z.object({destination:z.string().min(8),purpose:z.enum(["SIGNUP","LOGIN","RESET_PASSWORD","CHANGE_PHONE"])});
 const otpVerifySchema=z.object({destination:z.string().min(8),purpose:z.enum(["SIGNUP","LOGIN","RESET_PASSWORD","CHANGE_PHONE"]),code:z.string().length(6),name:z.string().min(2).optional()});
+const newOtp=()=>process.env.NODE_ENV!=="production"&&process.env.DEV_OTP_CODE?process.env.DEV_OTP_CODE:String(randomInt(100000,1000000));
 
 export async function authRoutes(app:FastifyInstance){
   app.post("/auth/register",{config:{rateLimit:{max:5,timeWindow:"10 minutes"}}},async(req,reply)=>{
@@ -20,7 +22,7 @@ export async function authRoutes(app:FastifyInstance){
     const user=await db.user.create({data:{email,passwordHash:await argon2.hash(body.password),profile:{create:{name:body.name}},wallet:{create:{}},roles:{create:{roleId:role.id}}}});
     const emailIsReady=emailConfigured();
     if(!emailIsReady) return {...await issueTokens(app,user.id,{ip:req.ip,ua:req.headers["user-agent"]}),verificationRequired:false,verificationDeferred:true};
-    const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
+    const code=newOtp();
     await db.otpChallenge.create({data:{userId:user.id,destination:user.email!,purpose:"SIGNUP",codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
     try{
       await emailProvider().send(user.email!,"Verify your PPM Bites email","Your PPM Bites verification code is "+code+". It expires in 5 minutes.");
@@ -43,7 +45,7 @@ export async function authRoutes(app:FastifyInstance){
     const isEmail=body.destination.includes("@");
     const available=isEmail?emailConfigured():smsConfigured();
     if(process.env.NODE_ENV==="production"&&!available) return reply.code(503).send({code:"OTP_CHANNEL_UNAVAILABLE",message:"OTP delivery is not configured for this channel",requestId:req.id});
-    const code=process.env.DEV_OTP_CODE??String(Math.floor(100000+Math.random()*900000));
+    const code=newOtp();
     await db.otpChallenge.create({data:{destination:body.destination,purpose:body.purpose,codeHash:otpHash(code),expiresAt:new Date(Date.now()+5*60*1000)}});
     const text="Your PPM Bites verification code is "+code+". It expires in 5 minutes.";
     if(isEmail) await emailProvider().send(body.destination,"PPM Bites verification code",text); else await smsProvider().send(body.destination,text);
@@ -53,11 +55,12 @@ export async function authRoutes(app:FastifyInstance){
   app.post("/auth/otp/verify",{config:{rateLimit:{max:10,timeWindow:"10 minutes"}}},async(req,reply)=>{
     const body=otpVerifySchema.parse(req.body);
     const challenge=await db.otpChallenge.findFirst({where:{destination:body.destination,purpose:body.purpose,consumedAt:null,expiresAt:{gt:new Date()}},orderBy:{createdAt:"desc"}});
-    if(!challenge || challenge.codeHash!==otpHash(body.code)){
-      if(challenge) await db.otpChallenge.update({where:{id:challenge.id},data:{attempts:{increment:1}}});
+    if(!challenge || challenge.attempts>=5 || challenge.codeHash!==otpHash(body.code)){
+      if(challenge&&challenge.attempts<5) await db.otpChallenge.updateMany({where:{id:challenge.id,consumedAt:null,attempts:{lt:5}},data:{attempts:{increment:1}}});
       return reply.code(400).send({code:"OTP_INVALID",message:"Invalid or expired OTP",requestId:req.id});
     }
-    await db.otpChallenge.update({where:{id:challenge.id},data:{consumedAt:new Date()}});
+    const consumed=await db.otpChallenge.updateMany({where:{id:challenge.id,consumedAt:null,expiresAt:{gt:new Date()},attempts:{lt:5}},data:{consumedAt:new Date()}});
+    if(consumed.count!==1) return reply.code(400).send({code:"OTP_INVALID",message:"Invalid or expired OTP",requestId:req.id});
     const isEmail=body.destination.includes("@");
     let user=isEmail?await db.user.findUnique({where:{email:body.destination.toLowerCase()}}):await db.user.findUnique({where:{phone:body.destination}});
     if(!user){

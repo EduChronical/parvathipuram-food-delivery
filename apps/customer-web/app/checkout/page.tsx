@@ -28,8 +28,8 @@ async function waitForPlacement(orderId:string){
 
 export default function Checkout(){
  const [cart,setCart]=useState<any>(null),[addresses,setAddresses]=useState<any[]>([]),[addressId,setAddressId]=useState("");
- const [caps,setCaps]=useState<Caps>({onlinePayments:false,cod:true});
- const [coupon,setCoupon]=useState("WELCOME50"),[instructions,setInstructions]=useState(""),[paymentMethod,setPaymentMethod]=useState<PaymentMethod>("COD");
+ const [caps,setCaps]=useState<Caps>({onlinePayments:false,cod:false});
+ const [coupon,setCoupon]=useState(""),[instructions,setInstructions]=useState(""),[paymentMethod,setPaymentMethod]=useState<PaymentMethod>("COD");
  const [message,setMessage]=useState(""),[busy,setBusy]=useState(false),[order,setOrder]=useState<any>(null);
 
  useEffect(()=>{
@@ -37,7 +37,8 @@ export default function Checkout(){
    if(!sessionStorage.getItem("ppm_access_token")){location.href="/account";return}
    if(!rid)return;
    Promise.all([api("/carts/"+rid),api("/me/addresses"),api("/platform/capabilities")]).then(([c,a,p]:any)=>{
-     setCart(c);setAddresses(a);setAddressId(a.find((x:any)=>x.isDefault)?.id??a[0]?.id??"");setCaps(p)
+     setCart(c);setAddresses(a);setAddressId(a.find((x:any)=>x.isDefault)?.id??a[0]?.id??"");setCaps(p);
+     if(!p.cod&&p.onlinePayments)setPaymentMethod("UPI");
    }).catch((e:any)=>setMessage(e.message));
  },[]);
 
@@ -93,7 +94,7 @@ export default function Checkout(){
  if(order)return <main className="mx-auto max-w-xl p-5"><Brand/><div className="card mt-8 text-center"><div className="text-5xl">✓</div><h1 className="mt-3 text-3xl font-black">{order.status==="PLACED"||paymentMethod==="COD"?"Order placed":"Payment submitted"}</h1><p className="muted">Order {order.orderNumber}</p><a className="button primary mt-5 inline-flex items-center" href="/orders">Track order</a></div></main>;
 
  const total=cart?.items?.reduce((s:number,i:any)=>s+(i.menuItem.discountedPricePaise??i.menuItem.pricePaise)*i.quantity,0)??0;
- const methods:PaymentMethod[]=caps.onlinePayments?["COD","UPI","CARD","NETBANKING","WALLET"]:["COD"];
+ const methods:PaymentMethod[]=[...(caps.cod?["COD" as const]:[]),...(caps.onlinePayments?["UPI" as const,"CARD" as const,"NETBANKING" as const,"WALLET" as const]:[])];
 
  return <main className="mx-auto max-w-3xl p-4 md:p-8">
    <div className="mb-7 split"><Brand/><a href="/account" className="button ghost inline-flex items-center">Account</a></div>
@@ -107,7 +108,7 @@ export default function Checkout(){
       <input className="input" value={coupon} onChange={e=>setCoupon(e.target.value)} placeholder="Coupon code"/>
       <h2 className="mt-2 text-xl font-bold">Payment</h2>
       <div className="grid gap-2">{methods.map(m=><button type="button" key={m} onClick={()=>setPaymentMethod(m)} className={"rounded-xl border p-3 text-left "+(paymentMethod===m?"border-[#e6502c] bg-[#fff4ef]":"border-[#e9e4dc] bg-white")}><div className="split"><b>{m==="COD"?"Cash on delivery":m==="NETBANKING"?"Net banking":m[0]+m.slice(1).toLowerCase()}</b>{paymentMethod===m&&<Pill tone="success">Selected</Pill>}</div>{m!=="COD"&&<div className="muted mt-1 text-sm">Secure online payment through the configured gateway.</div>}</button>)}</div>
-      {!caps.onlinePayments&&<div className="rounded-xl bg-[#f8f5ef] p-3 text-sm">Online payment options automatically appear when the live payment gateway and webhook are configured.</div>}
+      {!methods.length&&<div className="rounded-xl bg-[#fff2d9] p-3 text-sm">Ordering is temporarily unavailable. Please check back later.</div>}
     </section>
 
     <aside className="card">
@@ -115,7 +116,7 @@ export default function Checkout(){
       <div className="list mt-3">{cart?.items?.map((i:any)=><div className="row" key={i.id}><span>{i.quantity} × {i.menuItem.name}</span><b>{money((i.menuItem.discountedPricePaise??i.menuItem.pricePaise)*i.quantity)}</b></div>)}</div>
       <div className="split mt-4 text-lg"><b>Items</b><b>{money(total)}</b></div>
       <p className="muted text-sm">Taxes, delivery, packaging and discounts are recalculated securely by the server before order confirmation.</p>
-      <Button disabled={busy||!addressId} onClick={place} style={{width:"100%",marginTop:16}}>{busy?"Processing…":paymentMethod==="COD"?"Place COD order":"Continue to secure payment"}</Button>
+      <Button disabled={busy||!addressId||!methods.includes(paymentMethod)||!cart?.items?.length} onClick={place} style={{width:"100%",marginTop:16}}>{busy?"Processing…":paymentMethod==="COD"?"Place COD order":"Continue to secure payment"}</Button>
     </aside>
    </div>
    {message&&<div className="toast">{message}</div>}
